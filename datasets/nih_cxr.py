@@ -13,14 +13,15 @@ conditions = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration',
               'Pleural_Thickening', 'Hernia']
 
 
-class NIXCXRDataModule(pl.LightningDataModule):
+class NIHCXRDataModule(pl.LightningDataModule):
 
     def __init__(self, data_dir, binary=False, resolution=224, batch_size=32):
-        super(NIXCXRDataModule, self).__init__()
+        super(NIHCXRDataModule, self).__init__()
         self.data_dir = data_dir
         self.binary = binary
         self.resolution = resolution
         self.batch_size = batch_size
+        self.num_labels = 2 if binary else len(conditions)
 
     def setup(self, stage: Optional[str] = None):
         if stage == "fit" or stage is None:
