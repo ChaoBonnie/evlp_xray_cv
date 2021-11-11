@@ -1,4 +1,5 @@
 import os
+import shutil
 import pandas as pd
 from PIL import Image
 import torch
@@ -6,6 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import pytorch_lightning as pl
 from typing import Optional, Union, List
+import random
 
 conditions = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration',
               'Mass', 'Nodule', 'Pneumonia', 'Pneumothorax',
@@ -117,14 +119,38 @@ def make_labels_file(data_dir):
     target_df.to_csv(os.path.join(data_dir, 'labels.csv'), index=False)
 
 
-def make_split_dirs(data_dir):
-    # todo: Make split dirs
-    # 1. Make directories inside data_dir called 'train', 'val', and 'test' (os.mkdir(...))
-    # 2. Read the train_val_list.txt and test_list.txt
-    # 3. Move the images in test_list from the 'images' folder to the 'test' folder
-    # 4. Split the image names in train_val_list into a train_list and val_list,
-    #    making sure to have different subject_ids in each
-    # 5. Move the images in train_list from the 'images' folder to the 'train' folder
-    # 6. Move the images in val_list from the 'images' folder to the 'val' folder
-    # 7. Delete the empty 'images' folder (but make sure your function works correctly before to not lose all your data!)
-    pass
+def make_split_dirs(image_dir, split_list_dir, val_size=0.2):
+    """
+Note: assumes that images have been resized and saved as jpg's (rather than png's)
+    """
+    train_dir = image_dir + '/train'
+    val_dir = image_dir + '/val'
+    test_dir = image_dir + '/test'
+
+    os.makedirs(train_dir)
+    os.makedirs(val_dir)
+    os.makedirs(test_dir)
+
+    with open(split_list_dir + '/test_list.txt') as f:
+        test_filenames = f.readlines()
+    for filename in test_filenames:
+        filename = filename.strip().replace('.png', '.jpg')
+        shutil.move(image_dir + '/' + filename, test_dir + '/' + filename)
+
+    with open(split_list_dir + '/train_val_list.txt') as f:
+        train_val_filenames = f.readlines()
+    subject_ids = [filename.split('_')[0] for filename in train_val_filenames]
+    subject_ids = list(set(subject_ids))
+    random.seed(35)
+    random.shuffle(subject_ids)
+    val_subject_ids = set(subject_ids[:int(len(subject_ids)*val_size)])
+    train_subject_ids = set(subject_ids[int(len(subject_ids)*val_size):])
+    train_filenames = [filename for filename in train_val_filenames if filename.split('_')[0] in train_subject_ids]
+    val_filenames = [filename for filename in train_val_filenames if filename.split('_')[0] in val_subject_ids]
+
+    for filename in train_filenames:
+        filename = filename.strip().replace('.png', '.jpg')
+        shutil.move(image_dir + '/' + filename, train_dir + '/' + filename)
+    for filename in val_filenames:
+        filename = filename.strip().replace('.png', '.jpg')
+        shutil.move(image_dir + '/' + filename, val_dir + '/' + filename)

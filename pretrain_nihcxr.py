@@ -18,7 +18,10 @@ def main(data_dir, save_dir, binary, model_backbone,
     else:
         raise ValueError(f'Unknown model backbone: {model_backbone}')
 
-    task = BinaryClassificationTask(model=model)
+    if binary:
+        task = BinaryClassificationTask(model=model)
+    else:
+        raise ValueError(f'Non-binary labels not supported currently')
 
     # todo: add an EarlyStopping callback
     checkpoint_callback = ModelCheckpoint(monitor='val_loss', save_top_k=1, mode='min')
@@ -54,3 +57,4 @@ if __name__ == '__main__':
 
     main(data_dir=args.data_dir, save_dir=save_dir, binary=args.binary, model_backbone=args.model_backbone,
          max_epochs=args.max_epochs, debug=args.debug)
+
