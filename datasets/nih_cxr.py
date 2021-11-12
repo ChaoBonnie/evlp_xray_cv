@@ -23,7 +23,7 @@ class NIHCXRDataModule(pl.LightningDataModule):
         self.binary = binary
         self.resolution = resolution
         self.batch_size = batch_size
-        self.num_labels = 2 if binary else len(conditions)
+        self.num_labels = 1 if binary else len(conditions)
 
     def setup(self, stage: Optional[str] = None):
         if stage == "fit" or stage is None:
