@@ -43,7 +43,7 @@ class BinaryClassificationTask(pl.LightningModule):
         loss = F.binary_cross_entropy_with_logits(y_pred, y_true)
 
         self.log('train_loss', loss)
-        self.train_accuracy(y_pred, y_true)
+        self.train_accuracy(F.sigmoid(y_pred), y_true)
         self.log('train_accuracy', self.train_accuracy, prog_bar=True)
 
         return loss
@@ -52,10 +52,10 @@ class BinaryClassificationTask(pl.LightningModule):
         x, y_true = batch
         y_pred = self.forward(x)
 
-        loss = F.cross_entropy(y_pred, y_true)
+        loss = F.binary_cross_entropy_with_logits(y_pred, y_true)
 
         self.log('val_loss', loss, prog_bar=True)
-        self.val_accuracy(y_pred, y_true)
+        self.val_accuracy(F.sigmoid(y_pred), y_true)
         self.log('val_accuracy', self.val_accuracy, prog_bar=True)
 
     def configure_optimizers(self):
