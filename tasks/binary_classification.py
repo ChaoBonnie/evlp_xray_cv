@@ -38,7 +38,7 @@ class BinaryClassificationTask(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y_true = batch
-        y_pred = self.forward(x)
+        y_pred = self.forward(x).reshape(-1)
 
         loss = F.binary_cross_entropy_with_logits(y_pred, y_true)
 
@@ -50,7 +50,7 @@ class BinaryClassificationTask(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y_true = batch
-        y_pred = self.forward(x)
+        y_pred = self.forward(x).reshape(-1)
 
         loss = F.binary_cross_entropy_with_logits(y_pred, y_true)
 
