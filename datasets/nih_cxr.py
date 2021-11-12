@@ -96,6 +96,7 @@ class NIHCXRDataset(Dataset):
         label = torch.from_numpy(label.values)
         if self.binary:
             label = (label == 1).any()
+        label = label.long()
 
         return image, label
 
