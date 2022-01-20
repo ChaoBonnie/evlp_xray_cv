@@ -31,7 +31,8 @@ def main(data_dir, save_dir, binary, model_backbone,
         max_epochs=max_epochs,
         auto_select_gpus=True,
         overfit_batches=1 if debug else 0,
-        callbacks=[checkpoint_callback]
+        callbacks=[checkpoint_callback],
+        progress_bar_refresh_rate=0
     )
     trainer.fit(model=task, datamodule=data)
 
