@@ -7,4 +7,7 @@
 #SBATCH --output=%N-%j.out
 
 source imaging_env/bin/activate
+pip install torch --no-index
+pip install pytorch_lightning --no-index
+pip install torchvision --no-index
 python pretrain_nihcxr.py --data_dir ~/scratch/NIH_images_512p --name first_attempt --binary --debug
