@@ -9,4 +9,5 @@
 cd ~/projects/rrg-wanglab/bonchao
 source imaging_env/bin/activate
 cd evlp_xray_cv
+tensorboard --logdir=saved_models/pretrain_nihcxr --host 0.0.0.0 --load_fast false &
 python pretrain_nihcxr.py --data_dir ~/scratch/NIH_images_512p --name first_attempt --binary --debug
