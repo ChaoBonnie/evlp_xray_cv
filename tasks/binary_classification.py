@@ -21,7 +21,7 @@ class BinaryClassificationTask(pl.LightningModule):
 
     def __init__(self,
                  model: nn.Module,
-                 lr: float = 1e-3,
+                 lr: float = 1e-4,
                  example_input: torch.Tensor = None):
         super(BinaryClassificationTask, self).__init__()
 
