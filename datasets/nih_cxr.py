@@ -154,16 +154,3 @@ Note: assumes that images have been resized and saved as jpg's (rather than png'
     for filename in val_filenames:
         filename = filename.strip().replace('.png', '.jpg')
         shutil.move(image_dir + '/' + filename, val_dir + '/' + filename)
-
-train_filenames = os.listdir("C:/Users/chaob/OneDrive - University of Toronto/Documents/EVLP X-ray Imaging Project/NIH_images_512p/train")
-val_filenames = os.listdir("C:/Users/chaob/OneDrive - University of Toronto/Documents/EVLP X-ray Imaging Project/NIH_images_512p/val")
-labels = pd.read_csv("C:/Users/chaob/OneDrive - University of Toronto/Documents/EVLP X-ray Imaging Project/labels.csv",
-                     index_col='image_id')
-
-df_train = labels.drop(columns='subject_id').filter(items=train_filenames, axis=0)
-df_val = labels.drop(columns='subject_id').filter(items=val_filenames, axis=0)
-label_boolean_train = df_train.any(axis=1)
-label_boolean_val = df_val.any(axis=1)
-abnormality_ratio_train = label_boolean_train.values.sum() / len(label_boolean_train)
-abnormality_ratio_val = label_boolean_val.values.sum() / len(label_boolean_val)
-print(abnormality_ratio_train, abnormality_ratio_val)
