@@ -61,3 +61,6 @@ class BinaryClassificationTask(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         return optimizer
+
+model = torch.load("C:/Users/chaob/OneDrive - University of Toronto/Documents/EVLP X-ray Imaging Project/evlp_xray_cv/saved_models/pretrain_nihcxr/epoch=7-step=17399.ckpt")
+model.eval()
