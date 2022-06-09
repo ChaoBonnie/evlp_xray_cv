@@ -59,5 +59,6 @@ class BinaryClassificationTask(pl.LightningModule):
         self.log('val_accuracy', self.val_accuracy, prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-        return optimizer
+        optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr)
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+        return optimizer, scheduler

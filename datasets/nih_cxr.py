@@ -60,26 +60,26 @@ class NIHCXRDataset(Dataset):
         self.resolution = resolution
 
         # todo: This is where to put data augmentation
-        # You can have something like
-        # if split == 'train':
-        #     self.transform = transforms.Compose([
-        #         transforms.RandomHorizontalFlip(),
-        #         transforms.RandomResizedCrop((self.resolution, self.resolution)),
-        #         transforms.RandomRotation(5),
-        #         transforms.ToTensor(),
-        #         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
-        #     ])
-        # else:
-        #     self.transform = transforms.Compose([
-        #         transforms.Resize((resolution, resolution)),
-        #         transforms.ToTensor(),
-        #         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
-        #     ])
-        self.transform = transforms.Compose([
-            transforms.Resize((resolution, resolution)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
-        ])
+        if split == 'train':
+            self.transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomResizedCrop((self.resolution, self.resolution)),
+                transforms.RandomRotation(10),
+                transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1), #Placeholders - remember to update
+                transforms.ToTensor(),
+                transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)) #ImageNet standards placeholders
+            ])
+        else:
+            self.transform = transforms.Compose([
+                transforms.Resize((resolution, resolution)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)) #ImageNet standards placeholders
+            ])
+        # self.transform = transforms.Compose([
+        #     transforms.Resize((resolution, resolution)),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+        # ])
 
     def __len__(self):
         return len(self.image_files)
