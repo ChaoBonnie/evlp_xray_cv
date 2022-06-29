@@ -68,7 +68,7 @@ class BinaryClassificationTask(pl.LightningModule):
         optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr,
                                     weight_decay=0.0001, momentum=0.9)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=5)
-        return [optimizer], [scheduler]
+        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
 
     def update_logs(self, y_pred, y_true):
         assert not self.testing
