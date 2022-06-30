@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 import pytorch_lightning as pl
-from torchmetrics import Accuracy, AUROC, ConfusionMatrix
+from torchmetrics import Accuracy, ConfusionMatrix
 
 
 class BinaryClassificationTask(pl.LightningModule):
@@ -22,10 +22,8 @@ class BinaryClassificationTask(pl.LightningModule):
         self.frozen_feature_extractor = frozen_feature_extractor
 
         self.train_accuracy = Accuracy()
-        self.train_auroc = AUROC(compute_on_cpu=True)
         self.train_cm = ConfusionMatrix(num_classes=2)
         self.val_accuracy = Accuracy()
-        self.val_auroc = AUROC(compute_on_cpu=True)
         self.val_cm = ConfusionMatrix(num_classes=2)
 
     def forward(self, x):
@@ -73,31 +71,28 @@ class BinaryClassificationTask(pl.LightningModule):
     def update_logs(self, y_pred, y_true):
         assert not self.testing
         if self.training:
-            acc, auroc, cm = self.train_accuracy, self.train_auroc, self.train_cm
+            acc, cm = self.train_accuracy, self.train_cm
         else:
-            acc, auroc, cm = self.val_accuracy, self.val_auroc, self.val_cm
+            acc, cm = self.val_accuracy, self.val_cm
 
         y_pred, y_true = torch.sigmoid(y_pred), y_true.round().long()
 
         acc.update(y_pred, y_true)
-        auroc.update(y_pred, y_true)
         cm.update(y_pred, y_true)
 
     def make_logs(self):
         assert not self.testing
         if self.training:
-            acc, auroc, cm = self.train_accuracy, self.train_auroc, self.train_cm
+            acc, cm = self.train_accuracy, self.train_cm
             metric_prefix = 'train'
         else:
-            acc, auroc, cm = self.val_accuracy, self.val_auroc, self.val_cm
+            acc, cm = self.val_accuracy, self.val_cm
             metric_prefix = 'val'
 
         self.log(f'{metric_prefix}_accuracy', acc.compute())
-        self.log(f'{metric_prefix}_auroc', auroc.compute())
         self.log_confusion_matrix(f'{metric_prefix}_cm', cm.compute())
 
         acc.reset()
-        auroc.reset()
         cm.reset()
 
     def log_confusion_matrix(self, name, cm):
