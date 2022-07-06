@@ -107,7 +107,7 @@ def make_labels_file(data_dir):
     target_df = []
     for i in range(len(source_df)):
         source_datapoint = source_df.iloc[i]
-        target_datapoint = {'image_id': source_datapoint['Image Index'].replace('.png', '.jpg'),
+        target_datapoint = {'image_id': source_datapoint['Image Index'],
                             'subject_id': source_datapoint['Patient ID']}
         for f in conditions:
             target_datapoint[f] = 0
@@ -155,3 +155,4 @@ Note: assumes that images have been resized and saved as jpg's (rather than png'
     for filename in val_filenames:
         filename = filename.strip().replace('.png', '.jpg')
         shutil.move(image_dir + '/' + filename, val_dir + '/' + filename)
+make_labels_file('C:/Users/chaob/OneDrive - University of Toronto/Documents/EVLP X-ray Imaging Project')

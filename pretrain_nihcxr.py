@@ -2,7 +2,7 @@ import argparse
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch import nn
-from torchvision.models import resnet50
+from torchvision.models import resnet50, densenet121
 from datasets.nih_cxr import NIHCXRDataModule
 from tasks.binary_classification import BinaryClassificationTask
 from tasks.multilabel_binary_classification import MultiLabelBinaryClassificationTask
@@ -16,6 +16,9 @@ def main(data_dir, save_dir, binary, model_backbone,
     if model_backbone == 'resnet50':
         model = resnet50(pretrained=True)
         model.fc = nn.Linear(in_features=model.fc.in_features, out_features=data.num_labels)
+    if model_backbone == 'densenet121':
+        model = densenet121(pretrained=True)
+        model.classifier = nn.Linear(in_features=model.fc.in_features, out_features=data.num_labels)
     else:
         raise ValueError(f'Unknown model backbone: {model_backbone}')
 
@@ -44,8 +47,8 @@ if __name__ == '__main__':
                         help='Directory containing NIH CXR data.')
     parser.add_argument('--name', required=True, type=str,
                         help='Custom location for saving checkpoints and logs.')
-    parser.add_argument('--model_backbone', default='resnet50', type=str,
-                        choices=['resnet50'],
+    parser.add_argument('--model_backbone', default='densenet121', type=str,
+                        choices=['resnet50', 'densenet121'],
                         help='Base model architecture to use.')
     parser.add_argument('--binary', action='store_true',
                         help='Perform binary finding/no-finding classification (rather than per-class prediction).')
