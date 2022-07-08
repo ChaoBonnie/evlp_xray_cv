@@ -82,6 +82,5 @@ class NIHCXRCadLabDataset(Dataset):
 
         # Get the label
         label = self.labels[item]
-        label = label.float()
 
         return image, label
