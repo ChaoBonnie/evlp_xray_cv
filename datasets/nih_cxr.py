@@ -3,7 +3,7 @@ import shutil
 import pandas as pd
 from PIL import Image
 import torch
-from torch.utils.data import Dataset, DataLoader, ConcatDataset
+from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import pytorch_lightning as pl
 from typing import Optional, Union, List
@@ -63,7 +63,6 @@ class NIHCXRDataset(Dataset):
         self.binary = binary
         self.resolution = resolution
 
-        # todo: This is where to put data augmentation
         if split == 'train':
             self.transform = transforms.Compose([
                 transforms.Resize(int(resolution * 1.143)),  # 256 when resolution = 224

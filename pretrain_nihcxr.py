@@ -4,13 +4,18 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from torch import nn
 from torchvision.models import resnet50, densenet121
 from datasets.nih_cxr import NIHCXRDataModule
+from datasets.nih_cxr_cadlab import NIHCXRCadLabDataModule
 from tasks.binary_classification import BinaryClassificationTask
 from tasks.multilabel_binary_classification import MultiLabelBinaryClassificationTask
 
 
 def main(data_dir, save_dir, binary, model_backbone,
-         batch_size=64, max_epochs=None, debug=False):
-    data = NIHCXRDataModule(data_dir, binary=binary, batch_size=batch_size)
+         batch_size=64, max_epochs=None, use_cadlab=False, debug=False):
+    if use_cadlab:
+        assert binary
+        data = NIHCXRCadLabDataModule(data_dir, batch_size=batch_size)
+    else:
+        data = NIHCXRDataModule(data_dir, binary=binary, batch_size=batch_size)
 
     # Load the ImageNet pre-trained model backbone and change the number of units at the output
     if model_backbone == 'resnet50':
@@ -56,6 +61,8 @@ if __name__ == '__main__':
                         help='Batch size for training.')
     parser.add_argument('--max_epochs', default=100, type=int,
                         help='Maximum number of epochs to train for.')
+    parser.add_argument('--cadlab_dataset', action='store_true',
+                        help='Use the subset of images and labels from the 2020 CAD Lab paper.')
     parser.add_argument('--debug', action='store_true',
                         help='Overfit to a batch in order to debug the code/model/dataset.')
     args = parser.parse_args()
@@ -63,4 +70,4 @@ if __name__ == '__main__':
     save_dir = f'saved_models/pretrain_nihcxr/{args.name}'
 
     main(data_dir=args.data_dir, save_dir=save_dir, binary=args.binary, model_backbone=args.model_backbone,
-         batch_size=args.batch_size, max_epochs=args.max_epochs, debug=args.debug)
+         batch_size=args.batch_size, max_epochs=args.max_epochs, use_cadlab=args.cadlab_dataset, debug=args.debug)
