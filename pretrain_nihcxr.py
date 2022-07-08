@@ -9,8 +9,9 @@ from tasks.multilabel_binary_classification import MultiLabelBinaryClassificatio
 
 
 def main(data_dir, save_dir, binary, model_backbone,
-         batch_size=64, max_epochs=None, debug=False):
-    data = NIHCXRDataModule(data_dir, binary=binary, batch_size=batch_size)
+         batch_size=64, max_epochs=None, combine_trainval=False,
+         debug=False):
+    data = NIHCXRDataModule(data_dir, binary=binary, batch_size=batch_size, combine_trainval=combine_trainval)
 
     # Load the ImageNet pre-trained model backbone and change the number of units at the output
     if model_backbone == 'resnet50':
@@ -18,7 +19,7 @@ def main(data_dir, save_dir, binary, model_backbone,
         model.fc = nn.Linear(in_features=model.fc.in_features, out_features=data.num_labels)
     if model_backbone == 'densenet121':
         model = densenet121(pretrained=True)
-        model.classifier = nn.Linear(in_features=model.fc.in_features, out_features=data.num_labels)
+        model.classifier = nn.Linear(in_features=model.classifier.in_features, out_features=data.num_labels)
     else:
         raise ValueError(f'Unknown model backbone: {model_backbone}')
 
@@ -56,6 +57,8 @@ if __name__ == '__main__':
                         help='Batch size for training.')
     parser.add_argument('--max_epochs', default=100, type=int,
                         help='Maximum number of epochs to train for.')
+    parser.add_argument('--combine_trainval', action='store_true',
+                        help='Use the train and validation data for training, use the test data for evaluation.')
     parser.add_argument('--debug', action='store_true',
                         help='Overfit to a batch in order to debug the code/model/dataset.')
     args = parser.parse_args()
@@ -63,4 +66,5 @@ if __name__ == '__main__':
     save_dir = f'saved_models/pretrain_nihcxr/{args.name}'
 
     main(data_dir=args.data_dir, save_dir=save_dir, binary=args.binary, model_backbone=args.model_backbone,
-         batch_size=args.batch_size, max_epochs=args.max_epochs, debug=args.debug)
+         batch_size=args.batch_size, max_epochs=args.max_epochs, combine_trainval=args.combine_trainval,
+         debug=args.debug)
