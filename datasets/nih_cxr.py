@@ -17,14 +17,13 @@ conditions = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration',
 
 class NIHCXRDataModule(pl.LightningDataModule):
 
-    def __init__(self, data_dir, binary=False, resolution=224, batch_size=16, combine_trainval=False):
+    def __init__(self, data_dir, binary=False, resolution=224, batch_size=16):
         super(NIHCXRDataModule, self).__init__()
         self.data_dir = data_dir
         self.binary = binary
         self.resolution = resolution
         self.batch_size = batch_size
         self.num_labels = 1 if binary else len(conditions)
-        self.combine_trainval = combine_trainval
 
         self.dataset_train = None
         self.dataset_val = None
@@ -41,24 +40,13 @@ class NIHCXRDataModule(pl.LightningDataModule):
                                               binary=self.binary, resolution=self.resolution)
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        if self.combine_trainval:
-            return DataLoader(ConcatDataset([self.dataset_train, self.dataset_val]),
-                                            batch_size=self.batch_size, shuffle=True, num_workers=4)
-        else:
-            return DataLoader(self.dataset_train, batch_size=self.batch_size, shuffle=True, num_workers=4)
+        return DataLoader(self.dataset_train, batch_size=self.batch_size, shuffle=True, num_workers=4)
 
     def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        if self.combine_trainval:
-            return DataLoader(self.dataset_test, batch_size=self.batch_size, shuffle=False, num_workers=4)
-        else:
-            return DataLoader(self.dataset_val, batch_size=self.batch_size, shuffle=False, num_workers=4)
+        return DataLoader(self.dataset_val, batch_size=self.batch_size, shuffle=False, num_workers=4)
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        if self.combine_trainval:
-            raise ValueError('If combining the train and validation set for training, then the '
-                             'test set must be used for validation (i.e. we cannot have an additional test set)')
-        else:
-            return DataLoader(self.dataset_test, batch_size=self.batch_size, shuffle=False, num_workers=4)
+        return DataLoader(self.dataset_test, batch_size=self.batch_size, shuffle=False, num_workers=4)
 
 
 class NIHCXRDataset(Dataset):
