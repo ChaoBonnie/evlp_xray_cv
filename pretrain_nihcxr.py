@@ -21,7 +21,7 @@ def main(data_dir, save_dir, binary, model_backbone,
     if model_backbone == 'resnet50':
         model = resnet50(pretrained=True)
         model.fc = nn.Linear(in_features=model.fc.in_features, out_features=data.num_labels)
-    if model_backbone == 'densenet121':
+    elif model_backbone == 'densenet121':
         model = densenet121(pretrained=True)
         model.classifier = nn.Linear(in_features=model.classifier.in_features, out_features=data.num_labels)
     else:
