@@ -1,8 +1,9 @@
 .idea
+.vscode
 __pycache__
-cifar-10-batches-py
+.not_used
 data
 saved_models
-cifar-10-python.tar.gz
-cifar10_datamodule.py
-debug_cifar10.py
+cluster_scripts/outputs/*.out
+work_dir
+gpu_train_classify.py
