@@ -5,16 +5,18 @@ from matplotlib import pyplot as plt
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torchvision import ops
 import pytorch_lightning as pl
 from torchmetrics import Accuracy, ConfusionMatrix
 
 
 class BinaryClassificationTask(pl.LightningModule):
-
-    def __init__(self,
-                 model: nn.Module,
-                 lr: float = 1e-3,
-                 frozen_feature_extractor: Optional[nn.Module] = None):
+    def __init__(
+        self,
+        model: nn.Module,
+        lr: float = 1e-3,
+        frozen_feature_extractor: Optional[nn.Module] = None,
+    ):
         super(BinaryClassificationTask, self).__init__()
 
         self.model = model
@@ -40,9 +42,9 @@ class BinaryClassificationTask(pl.LightningModule):
         x, y_true = batch
         y_pred = self.forward(x).reshape(-1)
 
-        loss = F.binary_cross_entropy_with_logits(y_pred, y_true)
+        loss = ops.sigmoid_focal_loss(y_pred, y_true)
 
-        self.log('train_loss', loss)
+        self.log("train_loss", loss)
         self.update_logs(y_pred, y_true)
 
         return loss
@@ -54,19 +56,26 @@ class BinaryClassificationTask(pl.LightningModule):
         x, y_true = batch
         y_pred = self.forward(x).reshape(-1)
 
-        loss = F.binary_cross_entropy_with_logits(y_pred, y_true)
+        loss = ops.sigmoid_focal_loss(y_pred, y_true)
 
-        self.log('val_loss', loss)
+        self.log("val_loss", loss)
         self.update_logs(y_pred, y_true)
 
     def validation_epoch_end(self, outputs):
         self.make_logs()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr,
-                                    weight_decay=0.0001, momentum=0.9)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=5)
-        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
+        optimizer = torch.optim.SGD(
+            self.model.parameters(), lr=self.lr, weight_decay=0.0001, momentum=0.9
+        )
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, factor=0.1, patience=5
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler,
+            "monitor": "val_loss",
+        }
 
     def update_logs(self, y_pred, y_true):
         assert not self.testing
@@ -84,20 +93,20 @@ class BinaryClassificationTask(pl.LightningModule):
         assert not self.testing
         if self.training:
             acc, cm = self.train_accuracy, self.train_cm
-            metric_prefix = 'train'
+            metric_prefix = "train"
         else:
             acc, cm = self.val_accuracy, self.val_cm
-            metric_prefix = 'val'
+            metric_prefix = "val"
 
-        self.log(f'{metric_prefix}_accuracy', acc.compute())
-        self.log_confusion_matrix(f'{metric_prefix}_cm', cm.compute())
+        self.log(f"{metric_prefix}_accuracy", acc.compute())
+        self.log_confusion_matrix(f"{metric_prefix}_cm", cm.compute())
 
         acc.reset()
         cm.reset()
 
     def log_confusion_matrix(self, name, cm):
         df_cm = pd.DataFrame(cm.numpy(), index=[0, 1], columns=[0, 1])
-        df_cm = df_cm.rename_axis(index='True', columns='Predicted')
+        df_cm = df_cm.rename_axis(index="True", columns="Predicted")
         plt.figure(figsize=(5, 5))
         ax = sns.heatmap(df_cm, annot=True)
         fig = ax.get_figure()
