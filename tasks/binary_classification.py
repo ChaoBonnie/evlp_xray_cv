@@ -7,7 +7,14 @@ from torch import nn
 from torch.nn import functional as F
 from torchvision import ops
 import pytorch_lightning as pl
-from torchmetrics import Accuracy, ConfusionMatrix
+from torchmetrics import (
+    Accuracy,
+    ConfusionMatrix,
+    AUROC,
+    CalibrationError,
+    Precision,
+    Recall,
+)
 
 
 class BinaryClassificationTask(pl.LightningModule):
@@ -42,7 +49,7 @@ class BinaryClassificationTask(pl.LightningModule):
         x, y_true = batch
         y_pred = self.forward(x).reshape(-1)
 
-        loss = ops.sigmoid_focal_loss(y_pred, y_true)
+        loss = ops.sigmoid_focal_loss(y_pred, y_true, alpha=0.3256, reduction="mean")
 
         self.log("train_loss", loss)
         self.update_logs(y_pred, y_true)

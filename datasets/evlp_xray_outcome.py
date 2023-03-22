@@ -1,0 +1,199 @@
+import os
+import shutil
+import pandas as pd
+from PIL import Image
+import torch
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+import pytorch_lightning as pl
+from typing import Optional, Union, List
+
+
+class OutcomeDataModule(pl.LightningDataModule):
+    def __init__(
+        self,
+        data_dir,
+        label_type="multiclass",
+        resolution=224,
+        batch_size=16,
+    ):
+        super(OutcomeDataModule, self).__init__()
+        self.data_dir = data_dir
+        self.label_type = label_type
+        self.resolution = resolution
+        self.batch_size = batch_size
+
+        self.dataset_train = None
+        self.dataset_val = None
+        self.dataset_test = None
+        self.num_labels = self.labels_df["Outcome"].nunique()
+
+    def setup(self, stage: Optional[str] = None):
+        if stage == "fit" or stage is None:
+            self.dataset_train = OutcomeDataset(
+                self.data_dir,
+                split="train",
+                label_type=self.label_type,
+                resolution=self.resolution,
+            )
+            self.dataset_val = OutcomeDataset(
+                self.data_dir,
+                split="val",
+                label_type=self.label_type,
+                resolution=self.resolution,
+            )
+        if stage == "test" or stage is None:
+            self.dataset_test = OutcomeDataset(
+                self.data_dir,
+                split="test",
+                label_type=self.label_type,
+                resolution=self.resolution,
+            )
+
+    def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
+        return DataLoader(
+            self.dataset_train, batch_size=self.batch_size, shuffle=True, num_workers=4
+        )
+
+    def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
+        return DataLoader(
+            self.dataset_val, batch_size=self.batch_size, shuffle=False, num_workers=4
+        )
+
+    def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
+        return DataLoader(
+            self.dataset_test, batch_size=self.batch_size, shuffle=False, num_workers=4
+        )
+
+
+class OutcomeDataset(Dataset):
+    def __init__(
+        self,
+        data_dir,
+        split,
+        label_type="multiclass",
+        resolution=224,
+        trend=True,
+    ):
+        super(OutcomeDataset, self).__init__()
+        assert split in ["train", "val", "test"]
+
+        self.split = split
+        self.data_dir = data_dir
+        self.image_files = os.listdir(os.path.join(data_dir, split))
+        self.labels_df = pd.read_csv(
+            os.path.join(data_dir, "labels.csv"), index_col="EVLP_ID"
+        )
+        self.label_type = label_type
+        self.resolution = resolution
+        self.trend = trend
+        self.num_labels = self.labels_df["Outcome"].nunique()
+
+        if self.trend:
+            image_files_1hr = []
+            image_files_3hr = []
+
+            for image_file in self.image_files:
+                timepoint = image_file.split("_")[1]
+
+                if "1h" in timepoint:
+                    image_files_1hr.append(image_file)
+                elif "3h" in timepoint:
+                    image_files_3hr.append(image_file)
+
+            image_files_1hr.sort()
+            image_files_3hr.sort()
+            filetered_image_files_1hr = []
+            i = 0
+            for image_file_3hr in image_files_3hr:
+                image_name_3hr = image_file_3hr.split("_")[0]
+                while True:
+                    if i == len(image_files_1hr):
+                        assert False, f"No 1hr image found for {image_name_3hr}" # EVLP590 has no 1hr image -> moved out of dataset
+                    image_name_1hr = image_files_1hr[i].split("_")[0]
+                    if image_name_1hr == image_name_3hr:
+                        filetered_image_files_1hr.append(image_files_1hr[i])
+                        i += 1
+                        break
+                    else:
+                        i += 1
+
+            self.image_files = filetered_image_files_1hr
+            self.image_files_3hr = image_files_3hr
+
+            assert len(self.image_files) == len(self.image_files_3hr)  # Sanity check
+
+        if self.label_type == "outcome":
+            filtered_image_files = []
+            filtered_image_files_3hr = [] if self.trend else None
+            for i, image_file in enumerate(self.image_files):
+                evlp_id = int(image_file.split("_")[0][4:])
+                if self.labels_df.loc[evlp_id, "Outcome"] != 2:
+                    filtered_image_files.append(image_file)
+                    if self.trend:
+                        image_file_3hr = self.image_files_3hr[i]
+                        filtered_image_files_3hr.append(image_file_3hr)
+            self.image_files = filtered_image_files
+            if self.trend:
+                self.image_files_3hr = filtered_image_files_3hr
+
+        # todo: This is where to put data augmentation
+        if split == "train":
+            self.transform = transforms.Compose(
+                [
+                    # transforms.RandomResizedCrop((self.resolution, self.resolution), scale=(0.8, 1.0), ratio=(0.9, 1.1)),
+                    transforms.Resize((resolution, resolution)),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ColorJitter(brightness=0.25, contrast=0.25),
+                    transforms.RandomAffine(15, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                    ),
+                ]
+            )
+        else:
+            self.transform = transforms.Compose(
+                [
+                    transforms.Resize((resolution, resolution)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                    ),
+                ]
+            )
+        # self.transform = transforms.Compose([
+        #     transforms.Resize((resolution, resolution)),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+        # ])
+
+    def __len__(self):
+        return len(self.image_files)
+
+    def __getitem__(self, item):
+        # Get the image tensor (i.e. load it, transform it, turn it into a tensor)
+        image_file = self.image_files[item]
+        image_path = os.path.join(self.data_dir, self.split, image_file)
+        image = Image.open(image_path).convert("RGB")
+        image = self.transform(image)
+
+        if self.trend:
+            image_file_3hr = self.image_files_3hr[item]
+            image_path_3hr = os.path.join(self.data_dir, self.split, image_file_3hr)
+            image_3hr = Image.open(image_path_3hr).convert("RGB")
+            image_3hr = self.transform(image_3hr)
+            image = (image, image_3hr)
+
+        # Get the label tensor
+        evlp_id = int(image_file.split("_")[0][4:])  # Remove the file extension and EVLP prefix
+        label = self.labels_df.loc[evlp_id, "Outcome"]
+        if self.label_type == "transplant":
+            label = 1.0 if label == 2 else 0.0
+        elif self.label_type == "outcome":
+            label = 1.0 if label == 1 else 0.0
+        label = torch.tensor(label)
+
+        return image, label
+
+OutcomeDataset("/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/EVLP_CXR/recipient_outcome/Double/Main", "val", label_type='transplant', trend=True)
