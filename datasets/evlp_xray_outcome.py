@@ -13,20 +13,25 @@ class OutcomeDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_dir,
-        label_type="multiclass",
-        resolution=224,
+        resolution,
+        label_type,
+        trend,
         batch_size=16,
     ):
         super(OutcomeDataModule, self).__init__()
         self.data_dir = data_dir
+        self.labels_df = pd.read_csv(
+            os.path.join(data_dir, "labels.csv"), index_col="EVLP_ID"
+        )
         self.label_type = label_type
+        self.trend = trend
         self.resolution = resolution
         self.batch_size = batch_size
 
         self.dataset_train = None
         self.dataset_val = None
         self.dataset_test = None
-        self.num_labels = self.labels_df["Outcome"].nunique()
+        self.num_labels = 3 if label_type == "multiclass" else 1
 
     def setup(self, stage: Optional[str] = None):
         if stage == "fit" or stage is None:
@@ -34,12 +39,14 @@ class OutcomeDataModule(pl.LightningDataModule):
                 self.data_dir,
                 split="train",
                 label_type=self.label_type,
+                trend=self.trend,
                 resolution=self.resolution,
             )
             self.dataset_val = OutcomeDataset(
                 self.data_dir,
                 split="val",
                 label_type=self.label_type,
+                trend=self.trend,
                 resolution=self.resolution,
             )
         if stage == "test" or stage is None:
@@ -47,22 +54,23 @@ class OutcomeDataModule(pl.LightningDataModule):
                 self.data_dir,
                 split="test",
                 label_type=self.label_type,
+                trend=self.trend,
                 resolution=self.resolution,
             )
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(
-            self.dataset_train, batch_size=self.batch_size, shuffle=True, num_workers=4
+            self.dataset_train, batch_size=self.batch_size, shuffle=True, num_workers=3
         )
 
     def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(
-            self.dataset_val, batch_size=self.batch_size, shuffle=False, num_workers=4
+            self.dataset_val, batch_size=self.batch_size, shuffle=False, num_workers=3
         )
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(
-            self.dataset_test, batch_size=self.batch_size, shuffle=False, num_workers=4
+            self.dataset_test, batch_size=self.batch_size, shuffle=False, num_workers=3
         )
 
 
@@ -71,9 +79,9 @@ class OutcomeDataset(Dataset):
         self,
         data_dir,
         split,
-        label_type="multiclass",
-        resolution=224,
-        trend=True,
+        resolution,
+        label_type,
+        trend,
     ):
         super(OutcomeDataset, self).__init__()
         assert split in ["train", "val", "test"]
@@ -109,7 +117,9 @@ class OutcomeDataset(Dataset):
                 image_name_3hr = image_file_3hr.split("_")[0]
                 while True:
                     if i == len(image_files_1hr):
-                        assert False, f"No 1hr image found for {image_name_3hr}" # EVLP590 has no 1hr image -> moved out of dataset
+                        assert (
+                            False
+                        ), f"No 1hr image found for {image_name_3hr}"  # EVLP590 has no 1hr image -> moved out of dataset
                     image_name_1hr = image_files_1hr[i].split("_")[0]
                     if image_name_1hr == image_name_3hr:
                         filetered_image_files_1hr.append(image_files_1hr[i])
@@ -141,11 +151,12 @@ class OutcomeDataset(Dataset):
         if split == "train":
             self.transform = transforms.Compose(
                 [
-                    # transforms.RandomResizedCrop((self.resolution, self.resolution), scale=(0.8, 1.0), ratio=(0.9, 1.1)),
                     transforms.Resize((resolution, resolution)),
                     transforms.RandomHorizontalFlip(),
                     transforms.ColorJitter(brightness=0.25, contrast=0.25),
-                    transforms.RandomAffine(15, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+                    transforms.RandomAffine(
+                        degrees=15, translate=(0.1, 0.1), scale=(0.9, 1.1)
+                    ),
                     transforms.ToTensor(),
                     transforms.Normalize(
                         mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
@@ -186,7 +197,9 @@ class OutcomeDataset(Dataset):
             image = (image, image_3hr)
 
         # Get the label tensor
-        evlp_id = int(image_file.split("_")[0][4:])  # Remove the file extension and EVLP prefix
+        evlp_id = int(
+            image_file.split("_")[0][4:]
+        )  # Remove the file extension and EVLP prefix
         label = self.labels_df.loc[evlp_id, "Outcome"]
         if self.label_type == "transplant":
             label = 1.0 if label == 2 else 0.0
@@ -196,4 +209,17 @@ class OutcomeDataset(Dataset):
 
         return image, label
 
-OutcomeDataset("/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/EVLP_CXR/recipient_outcome/Double/Main", "val", label_type='transplant', trend=True)
+
+def test_dataloader():
+
+    train_dataloader = OutcomeDataModule(
+        data_dir="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/EVLP_CXR/recipient_outcome/Double/Main/",
+        resolution=224,
+        label_type="transplant",
+        batch_size=2,
+    )
+    train_dataloader.setup(stage="fit")
+    train_dataloader = train_dataloader.train_dataloader()
+    it = iter(train_dataloader)
+    for _ in range(10):
+        train_features, train_labels = next(it)

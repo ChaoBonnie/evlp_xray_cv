@@ -9,7 +9,6 @@ from torchvision.models import (
     efficientnet_b3,
     resnet50,
     resnext50_32x4d,
-    rexnet_100,
 )
 from datasets.nih_cxr import NIHCXRDataModule
 from datasets.nih_cxr_cadlab import NIHCXRCadLabDataModule
@@ -27,11 +26,23 @@ def main(
     use_cadlab=False,
     debug=False,
 ):
+
+    if model_backbone == "efficientnetB2":
+        resolution = 256
+    elif model_backbone == "efficientnetB3":
+        resolution = 288
+    else:
+        resolution = 224
+
     if use_cadlab:
         assert binary
-        data = NIHCXRCadLabDataModule(data_dir, batch_size=batch_size)
+        data = NIHCXRCadLabDataModule(
+            data_dir, resolution=resolution, batch_size=batch_size
+        )
     else:
-        data = NIHCXRDataModule(data_dir, binary=binary, batch_size=batch_size)
+        data = NIHCXRDataModule(
+            data_dir, resolution=resolution, binary=binary, batch_size=batch_size
+        )
 
     # Load the ImageNet pre-trained model backbone and change the number of units at the output
     if model_backbone == "resnet50":
@@ -46,21 +57,17 @@ def main(
         )
     elif model_backbone == "rexnet100":
         model = timm.create_model("rexnet_100", pretrained=True)
-        model.fc = nn.Linear(
-            in_features=model.fc.in_features, out_features=data.num_labels
-        )
+        model.reset_classifier(num_classes=data.num_labels)
     elif model_backbone == "densenet121":
         model = densenet121(pretrained=True)
         model.classifier = nn.Linear(
             in_features=model.classifier.in_features, out_features=data.num_labels
         )
-
     elif model_backbone == "efficientnetB2":
         model = efficientnet_b2(pretrained=True)
         model.classifier = nn.Linear(
             in_features=model.classifier.in_features, out_features=data.num_labels
         )
-
     elif model_backbone == "efficientnetB3":
         model = efficientnet_b3(pretrained=True)
         model.classifier = nn.Linear(
@@ -68,6 +75,16 @@ def main(
         )
     else:
         raise ValueError(f"Unknown model backbone: {model_backbone}")
+
+    # if use_cadlab:
+    #     assert binary
+    #     data = NIHCXRCadLabDataModule(
+    #         data_dir, resolution=resolution, batch_size=batch_size
+    #     )
+    # else:
+    #     data = NIHCXRDataModule(
+    #         data_dir, resolution=resolution, binary=binary, batch_size=batch_size
+    #     )
 
     if binary:
         task = BinaryClassificationTask(model=model)

@@ -30,19 +30,27 @@ class MulticlassClassificationTask(pl.LightningModule):
         self.lr = lr
         self.frozen_feature_extractor = frozen_feature_extractor
 
-        self.train_accuracy = Accuracy()
-        self.train_cm = ConfusionMatrix(num_classes=3)
-        self.train_auroc = AUROC(num_classes=3)
-        self.train_calibration_error = CalibrationError(num_bins=10)
-        self.train_precision = Precision(num_classes=3)
-        self.train_recall = Recall(num_classes=3)
+        self.train_accuracy = Accuracy(task="multiclass")
+        self.train_cm = ConfusionMatrix(task="multiclass", num_classes=3)
+        self.train_auroc = AUROC(task="multiclass", num_classes=3, average="macro")
+        self.train_calibration_error = CalibrationError(
+            task="multiclass", num_classes=3, num_bins=10
+        )
+        self.train_precision = Precision(
+            task="multiclass", num_classes=3, average="macro"
+        )
+        self.train_recall = Recall(task="multiclass", num_classes=3, average="macro")
 
-        self.val_accuracy = Accuracy()
-        self.val_cm = ConfusionMatrix(num_classes=3)
-        self.val_auroc = AUROC(num_classes=3)
-        self.train_calibration_error = CalibrationError(num_bins=10)
-        self.val_precision = Precision(num_classes=3)
-        self.val_recall = Recall(num_classes=3)
+        self.val_accuracy = Accuracy(task="multiclass")
+        self.val_cm = ConfusionMatrix(task="multiclass", num_classes=3)
+        self.val_auroc = AUROC(task="multiclass", num_classes=3, average="macro")
+        self.train_calibration_error = CalibrationError(
+            task="multiclass", num_classes=3, num_bins=10
+        )
+        self.val_precision = Precision(
+            task="multiclass", num_classes=3, average="macro"
+        )
+        self.val_recall = Recall(task="multiclass", num_classes=3, average="macro")
 
     def forward(self, x):
         if self.frozen_feature_extractor is None:

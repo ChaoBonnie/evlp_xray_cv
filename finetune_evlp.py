@@ -11,7 +11,6 @@ from torchvision.models import (
     efficientnet_b3,
     resnet50,
     resnext50_32x4d,
-    rexnet_100,
 )
 from datasets.evlp_xray_outcome import OutcomeDataModule
 from tasks.binary_classification import BinaryClassificationTask
@@ -24,7 +23,8 @@ def main(
     data_dir,
     save_dir,
     model_backbone,
-    classification,
+    label_type,
+    trend,
     pretrain_path=None,
     finetune_all=True,
     pretrain_was_multilabel=False,
@@ -36,21 +36,31 @@ def main(
     if not pretrain_was_multilabel:
         assert pretrain_num_labels == 1
 
+    if model_backbone == "efficientnetB2":
+        resolution = 256
+    elif model_backbone == "efficientnetB3":
+        resolution = 288
+    else:
+        resolution = 224
+
+    # Load your data
+    data = OutcomeDataModule(
+        data_dir,
+        label_type=label_type,
+        trend=trend,
+        resolution=resolution,
+        batch_size=16,
+    )
+
     # Load the pre-trained model
-    model, frozen_feature_extractor, resolution = load_pretrained(
+    model, frozen_feature_extractor = load_pretrained(
+        trend=trend,
         model_backbone=model_backbone,
         pretrain_path=pretrain_path,
         pretrain_was_multilabel=pretrain_was_multilabel,
         pretrain_num_labels=pretrain_num_labels,
         finetune_num_labels=data.num_labels,
         finetune_all=finetune_all,
-    )
-
-    # Load your data
-    data = OutcomeDataModule(
-        data_dir,
-        resolution=resolution,
-        batch_size=32,
     )
 
     # Create an instance of the task we want to be training on
@@ -74,11 +84,11 @@ def main(
             f'["binarize", "discretize", "aggregate_regions", "aggregate_labels"]'
         )
     """
-    if classification == "binary":
+    if (label_type == "transplant") or (label_type == "outcome"):
         task = BinaryClassificationTask(
             model=model, frozen_feature_extractor=frozen_feature_extractor
         )
-    elif classification == "multiclass":
+    elif label_type == "multiclass":
         task = MulticlassClassificationTask(
             model=model, frozen_feature_extractor=frozen_feature_extractor
         )
@@ -90,73 +100,68 @@ def main(
     trainer = pl.Trainer(
         default_root_dir=save_dir,
         max_epochs=max_epochs,
-        auto_select_gpus=True,
         overfit_batches=1 if debug else 0,
         callbacks=[checkpoint_callback],
-        progress_bar_refresh_rate=0,
     )
     trainer.fit(model=task, datamodule=data)
 
 
 def load_pretrained(
+    trend: bool,
     model_backbone: str,
     pretrain_path: Optional[str],
     pretrain_was_multilabel: bool,
     pretrain_num_labels: int,
     finetune_num_labels: int,
     finetune_all: bool,
-    trend: bool = True,
 ) -> Tuple[nn.Module, Optional[nn.Module]]:
     # Step 1: recreate the pre-trained model backbone, so that we can load its weights
     if model_backbone == "resnet50":
-        model = resnet50(pretrained=True)
+        model = resnet50(pretrained=False)
         model.fc = nn.Linear(
             in_features=model.fc.in_features, out_features=pretrain_num_labels
         )
-    elif model_backbone == "resnext50_32x4d":
-        model = resnext50_32x4d(pretrained=True)
+    elif model_backbone == "resnext50":
+        model = resnext50_32x4d(pretrained=False)
         model.fc = nn.Linear(
             in_features=model.fc.in_features, out_features=pretrain_num_labels
         )
-    elif model_backbone == "rexnet_100":
-        model = timm.create_model("rexnet_100", pretrained=True)
-        model.fc = nn.Linear(
-            in_features=model.fc.in_features, out_features=pretrain_num_labels
-        )
+    elif model_backbone == "rexnet100":
+        model = timm.create_model("rexnet_100", pretrained=False)
+        model.reset_classifier(num_classes=pretrain_num_labels)
     elif model_backbone == "densenet121":
-        model = densenet121(pretrained=True)
+        model = densenet121(pretrained=False)
         model.classifier = nn.Linear(
             in_features=model.classifier.in_features, out_features=pretrain_num_labels
         )
-    elif model_backbone == "efficientnet_b2":
-        model = efficientnet_b2(pretrained=True)
-        model.classifier = nn.Linear(
-            in_features=model.classifier.in_features, out_features=pretrain_num_labels
-        )
-    elif model_backbone == "efficientnet_b3":
-        model = efficientnet_b3(pretrained=True)
-        model.classifier = nn.Linear(
-            in_features=model.classifier.in_features, out_features=pretrain_num_labels
-        )
+    elif model_backbone == "efficientnetB2":
+        model = timm.create_model("efficientnet_b2", pretrained=False)
+        model.reset_classifier(num_classes=pretrain_num_labels)
+    elif model_backbone == "efficientnetB3":
+        model = timm.create_model("efficientnet_b3", pretrained=False)
+        model.reset_classifier(num_classes=pretrain_num_labels)
     else:
         raise ValueError(f"Unknown model backbone: {model_backbone}")
 
     # Step 2: load the model from its checkpoint
     if pretrain_path is not None:
-        if pretrain_was_multilabel:
-            task = MultiLabelBinaryClassificationTask.load_from_checkpoint(
-                pretrain_path, model=model, n_classes=pretrain_num_labels
-            )
-            model = task.model
+
+        if pretrain_path.split(".")[1] == "tar":
+            timm.models.helpers.load_checkpoint(model, pretrain_path)
         else:
-            task = BinaryClassificationTask.load_from_checkpoint(
-                pretrain_path, model=model
-            )
-            model = task.model
+            if pretrain_was_multilabel:
+                task = MultiLabelBinaryClassificationTask.load_from_checkpoint(
+                    pretrain_path, model=model, n_classes=pretrain_num_labels
+                )
+                model = task.model
+            else:
+                task = BinaryClassificationTask.load_from_checkpoint(
+                    pretrain_path, model=model
+                )
+                model = task.model
 
     # Step 3: Swap out the last layer for our number of labels
-    resolution = 224
-    if (model_backbone == "resnet50") | (model_backbone == "resnext50_32x4d"):
+    if (model_backbone == "resnet50") | (model_backbone == "resnext50"):
         if not trend:
             print("old num-classes: ", model.fc)  # 1000
             model.fc = nn.Linear(
@@ -166,11 +171,7 @@ def load_pretrained(
         else:
             num_feats = model.fc.in_features
             model.fc = nn.Identity()
-    elif (
-        (model_backbone == "densenet121")
-        | (model_backbone == "efficientnet_b2")
-        | (model_backbone == "efficientnet_b3")
-    ):
+    elif model_backbone == "densenet121":
         if not trend:
             print("old num-classes: ", model.classifier)  # 1000
             model.classifier = nn.Linear(
@@ -181,6 +182,26 @@ def load_pretrained(
         else:
             num_feats = model.classifier.in_features
             model.classifier = nn.Identity()
+    elif (model_backbone == "efficientnetB2") | (model_backbone == "efficientnetB3"):
+        if not trend:
+            print("old num-classes: ", model.head)  # 1000
+            model.reset_classifier(num_classes=pretrain_num_labels)
+            print("new num-classes: ", model.head)  # 3
+        else:
+            num_feats = model.num_features
+            model.classifier = nn.Identity()
+    elif model_backbone == "rexnet100":
+        if not trend:
+            print("old num-classes: ", model.head)  # 1000
+            model.reset_classifier(num_classes=pretrain_num_labels)
+            print("new num-classes: ", model.head)  # 3
+        else:
+            num_feats = model.num_features
+            model = nn.Sequential(
+                model.stem,
+                model.features,
+                nn.AdaptiveAvgPool2d(1),
+            )
     # elif args.model == "rexnet_100":
     #     if not trend:
     #         print("old num-classes: ", model.head)  # 1000
@@ -210,7 +231,7 @@ def load_pretrained(
             num_outputs=finetune_num_labels,
         )
 
-    return model, frozen_feature_extractor, resolution
+    return model, frozen_feature_extractor
 
 
 if __name__ == "__main__":
@@ -231,19 +252,24 @@ if __name__ == "__main__":
         type=str,
         choices=[
             "resnet50",
-            "resnext50_32x4d",
-            "rexnet_100",
+            "resnext50",
+            "rexnet100",
             "densenet121",
-            "efficientnet_b2",
-            "efficientnet_b3",
+            "efficientnetB2",
+            "efficientnetB3",
         ],
         help="Base model architecture to use.",
     )
     parser.add_argument(
-        "--classification",
+        "--label_type",
         required=True,
         type=str,
-        help="Binary or multiclass classification.",
+        help="transplant, outcome, or multiclass labels.",
+    )
+    parser.add_argument(
+        "--trend",
+        action="store_true",
+        help="take in 1h and 3h images for a single case",
     )
     parser.add_argument(
         "--pretrain_path", type=str, help="Path to the pre-trained model."
@@ -291,11 +317,6 @@ if __name__ == "__main__":
         help="Maximum number of epochs to train for.",
     )
     parser.add_argument(
-        "--resolution",
-        type=int,
-        help="Image resolution (depending on the model backbone).",
-    )
-    parser.add_argument(
         "--debug",
         action="store_true",
         help="Overfit to a batch in order to debug the code/model/dataset.",
@@ -308,12 +329,12 @@ if __name__ == "__main__":
         data_dir=args.data_dir,
         save_dir=save_dir,
         model_backbone=args.model_backbone,
-        classification=args.classification,
+        label_type=args.label_type,
+        trend=args.trend,
         pretrain_path=args.pretrain_path,
         finetune_all=not args.finetune_head,
         pretrain_was_multilabel=args.pretrain_was_multilabel,
         pretrain_num_labels=args.pretrain_num_labels,
         max_epochs=args.max_epochs,
-        resolution=args.resolution,
         debug=args.debug,
     )

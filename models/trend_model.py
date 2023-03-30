@@ -1,14 +1,6 @@
 from typing import Tuple
 import torch
 from torch import nn
-from torchvision.models import (
-    densenet121,
-    efficientnet_b2,
-    efficientnet_b3,
-    resnet50,
-    resnext50_32x4d,
-    rexnet_100,
-)
 
 
 class TrendModel(nn.Module):
@@ -30,9 +22,9 @@ class TrendModel(nn.Module):
         x_stacked = torch.cat(
             x_1hr_3hr, dim=0
         )  # (batch, 3, x, y), (batch, 3, x, y) -> (batch*2, 3, x, y)
-        feats_stacked = self.feature_extractor(
-            x_stacked
-        )  # pass through your CNN (1 CNN processes 1hr and 3hr independently). (batch*2, 3, x, y) -> (batch*2, num_features)
+        feats_stacked = self.feature_extractor(x_stacked)
+        feats_stacked = feats_stacked.flatten(1)
+        # pass through your CNN (1 CNN processes 1hr and 3hr independently). (batch*2, 3, x, y) -> (batch*2, num_features)
 
         # Get the trend features
         feats_1hr, feats_3hr = torch.split(
