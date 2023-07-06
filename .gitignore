@@ -7,3 +7,8 @@ saved_models
 cluster_scripts/outputs/*.out
 work_dir
 gpu_train_classify.py
+inference/**/*.png
+inference/**/*.csv
+inference/*.csv
+plot_figures/*.png
+plot_figures/*.xlsx

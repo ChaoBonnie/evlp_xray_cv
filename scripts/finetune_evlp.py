@@ -1,5 +1,6 @@
 import argparse
 import timm
+import torchxrayvision as xrv
 from copy import deepcopy
 from typing import Optional, Tuple
 import pytorch_lightning as pl
@@ -7,8 +8,6 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from torch import nn
 from torchvision.models import (
     densenet121,
-    efficientnet_b2,
-    efficientnet_b3,
     resnet50,
     resnext50_32x4d,
 )
@@ -28,6 +27,7 @@ def main(
     pretrain_path=None,
     finetune_all=True,
     pretrain_was_multilabel=False,
+    pretrain_on_all_public_data=False,
     pretrain_num_labels=1,
     max_epochs=None,
     debug=False,
@@ -40,16 +40,29 @@ def main(
         resolution = 256
     elif model_backbone == "efficientnetB3":
         resolution = 288
+    elif model_backbone == "resnet50" and pretrain_on_all_public_data:
+        resolution = 512
     else:
         resolution = 224
 
     # Load your data
+    if pretrain_on_all_public_data:
+        norm_mean = (0.5, 0.5, 0.5)
+        norm_std = (1 / 2048, 1 / 2048, 1 / 2048)
+        grayscale = True
+    else:
+        norm_mean = (0.485, 0.456, 0.406)
+        norm_std = (0.229, 0.224, 0.225)
+        grayscale = False
     data = OutcomeDataModule(
         data_dir,
         label_type=label_type,
         trend=trend,
         resolution=resolution,
-        batch_size=16,
+        batch_size=8,
+        grayscale=grayscale,
+        norm_mean=norm_mean,
+        norm_std=norm_std,
     )
 
     # Load the pre-trained model
@@ -58,6 +71,7 @@ def main(
         model_backbone=model_backbone,
         pretrain_path=pretrain_path,
         pretrain_was_multilabel=pretrain_was_multilabel,
+        pretrain_on_all_public_data=pretrain_on_all_public_data,
         pretrain_num_labels=pretrain_num_labels,
         finetune_num_labels=data.num_labels,
         finetune_all=finetune_all,
@@ -68,9 +82,15 @@ def main(
     """
     Tasks used for RLS classification:
     
-    if binarize and aggregate_labels and aggregate_regions:
-        task = BinaryClassificationTask(
-            model=model, frozen_feature_extractor=frozen_feature_extractor
+    if binarize and aggregate_labels and model = load_pretrained(
+        model_backbone=model_backbone,
+        finetune_num_labels=num_label,
+        trend=True,
+        pretrain_num_labels=num_label,
+        pretrain_path=None,
+        pretrain_was_multilabel=False,
+        finetune_all=True,
+    )en_feature_extractor
         )
     elif binarize and not aggregate_labels:
         task = MultiLabelBinaryClassificationTask(
@@ -111,6 +131,7 @@ def load_pretrained(
     model_backbone: str,
     pretrain_path: Optional[str],
     pretrain_was_multilabel: bool,
+    pretrain_on_all_public_data: bool,
     pretrain_num_labels: int,
     finetune_num_labels: int,
     finetune_all: bool,
@@ -145,7 +166,6 @@ def load_pretrained(
 
     # Step 2: load the model from its checkpoint
     if pretrain_path is not None:
-
         if pretrain_path.split(".")[1] == "tar":
             timm.models.helpers.load_checkpoint(model, pretrain_path)
         else:
@@ -159,6 +179,15 @@ def load_pretrained(
                     pretrain_path, model=model
                 )
                 model = task.model
+    elif pretrain_on_all_public_data:
+        if model_backbone == "resnet50":
+            model = xrv.models.ResNet(weights="resnet50-res512-all")
+        elif model_backbone == "densenet121":
+            model = xrv.models.DenseNet(weights="densenet121-res224-all")
+        else:
+            raise ValueError(
+                f"Unsupported model backbone: {model_backbone} for torchxrayvision"
+            )
 
     # Step 3: Swap out the last layer for our number of labels
     if (model_backbone == "resnet50") | (model_backbone == "resnext50"):
@@ -169,8 +198,13 @@ def load_pretrained(
             )
             print("new num-classes: ", model.fc)  # 3
         else:
-            num_feats = model.fc.in_features
-            model.fc = nn.Identity()
+            if pretrain_on_all_public_data:
+                num_feats = model.model.fc.in_features
+                model.model.fc = nn.Identity()
+                model.op_threshs = None
+            else:
+                num_feats = model.fc.in_features
+                model.fc = nn.Identity()
     elif model_backbone == "densenet121":
         if not trend:
             print("old num-classes: ", model.classifier)  # 1000
@@ -180,8 +214,13 @@ def load_pretrained(
             )
             print("new num-classes: ", model.classifier)  # 3
         else:
-            num_feats = model.classifier.in_features
-            model.classifier = nn.Identity()
+            if pretrain_on_all_public_data:
+                num_feats = model.model.classifier.in_features
+                model.model.classifier = nn.Identity()
+                model.op_threshs = None
+            else:
+                num_feats = model.classifier.in_features
+                model.classifier = nn.Identity()
     elif (model_backbone == "efficientnetB2") | (model_backbone == "efficientnetB3"):
         if not trend:
             print("old num-classes: ", model.head)  # 1000
@@ -285,6 +324,11 @@ if __name__ == "__main__":
         help="Pre-trained model was trained on multi-label task.",
     )
     parser.add_argument(
+        "--pretrain_on_all_public_data",
+        action="store_true",
+        help="Pre-trained model was trained on the datasets: nih-pc-chex-mimic_ch-google-openi-rsna, described in the torchxrayvision library.",  # pretrain_num_labels = 18
+    )
+    parser.add_argument(
         "--pretrain_num_labels",
         type=int,
         default=1,
@@ -334,6 +378,7 @@ if __name__ == "__main__":
         pretrain_path=args.pretrain_path,
         finetune_all=not args.finetune_head,
         pretrain_was_multilabel=args.pretrain_was_multilabel,
+        pretrain_on_all_public_data=args.pretrain_on_all_public_data,
         pretrain_num_labels=args.pretrain_num_labels,
         max_epochs=args.max_epochs,
         debug=args.debug,

@@ -25,6 +25,7 @@ class BinaryClassificationTask(pl.LightningModule):
         frozen_feature_extractor: Optional[nn.Module] = None,
     ):
         super(BinaryClassificationTask, self).__init__()
+        self.save_hyperparameters(logger=False)
 
         self.model = model
         self.lr = lr
@@ -46,6 +47,9 @@ class BinaryClassificationTask(pl.LightningModule):
                 x = self.frozen_feature_extractor(x)
             y_pred = self.model(x)
         return y_pred
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        return self(batch)
 
     def training_step(self, batch, batch_idx):
         x, y_true = batch

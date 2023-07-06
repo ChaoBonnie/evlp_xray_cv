@@ -1,6 +1,7 @@
 import os
 import shutil
 import pandas as pd
+import numpy as np
 from PIL import Image
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -17,6 +18,10 @@ class OutcomeDataModule(pl.LightningDataModule):
         label_type,
         trend,
         batch_size=16,
+        return_label=True,
+        grayscale=False,
+        norm_mean=(0.485, 0.456, 0.406),
+        norm_std=(0.229, 0.224, 0.225),
     ):
         super(OutcomeDataModule, self).__init__()
         self.data_dir = data_dir
@@ -27,6 +32,10 @@ class OutcomeDataModule(pl.LightningDataModule):
         self.trend = trend
         self.resolution = resolution
         self.batch_size = batch_size
+        self.return_label = return_label
+        self.norm_mean = norm_mean
+        self.norm_std = norm_std
+        self.grayscale = grayscale
 
         self.dataset_train = None
         self.dataset_val = None
@@ -41,6 +50,10 @@ class OutcomeDataModule(pl.LightningDataModule):
                 label_type=self.label_type,
                 trend=self.trend,
                 resolution=self.resolution,
+                return_label=self.return_label,
+                grayscale=self.grayscale,
+                norm_mean=self.norm_mean,
+                norm_std=self.norm_std,
             )
             self.dataset_val = OutcomeDataset(
                 self.data_dir,
@@ -48,6 +61,10 @@ class OutcomeDataModule(pl.LightningDataModule):
                 label_type=self.label_type,
                 trend=self.trend,
                 resolution=self.resolution,
+                return_label=self.return_label,
+                grayscale=self.grayscale,
+                norm_mean=self.norm_mean,
+                norm_std=self.norm_std,
             )
         if stage == "test" or stage is None:
             self.dataset_test = OutcomeDataset(
@@ -56,6 +73,10 @@ class OutcomeDataModule(pl.LightningDataModule):
                 label_type=self.label_type,
                 trend=self.trend,
                 resolution=self.resolution,
+                return_label=self.return_label,
+                grayscale=self.grayscale,
+                norm_mean=self.norm_mean,
+                norm_std=self.norm_std,
             )
 
     def train_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
@@ -82,6 +103,10 @@ class OutcomeDataset(Dataset):
         resolution,
         label_type,
         trend,
+        return_label=True,
+        grayscale=False,
+        norm_mean=(0.485, 0.456, 0.406),
+        norm_std=(0.229, 0.224, 0.225),
     ):
         super(OutcomeDataset, self).__init__()
         assert split in ["train", "val", "test"]
@@ -96,6 +121,8 @@ class OutcomeDataset(Dataset):
         self.resolution = resolution
         self.trend = trend
         self.num_labels = self.labels_df["Outcome"].nunique()
+        self.return_label = return_label
+        self.grayscale = grayscale
 
         if self.trend:
             image_files_1hr = []
@@ -147,7 +174,9 @@ class OutcomeDataset(Dataset):
             if self.trend:
                 self.image_files_3hr = filtered_image_files_3hr
 
-        # todo: This is where to put data augmentation
+        # print(len(self.image_files))
+
+        # This is where to put data augmentation
         if split == "train":
             self.transform = transforms.Compose(
                 [
@@ -158,9 +187,7 @@ class OutcomeDataset(Dataset):
                         degrees=15, translate=(0.1, 0.1), scale=(0.9, 1.1)
                     ),
                     transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-                    ),
+                    transforms.Normalize(mean=norm_mean, std=norm_std),
                 ]
             )
         else:
@@ -168,9 +195,7 @@ class OutcomeDataset(Dataset):
                 [
                     transforms.Resize((resolution, resolution)),
                     transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-                    ),
+                    transforms.Normalize(mean=norm_mean, std=norm_std),
                 ]
             )
         # self.transform = transforms.Compose([
@@ -188,13 +213,18 @@ class OutcomeDataset(Dataset):
         image_path = os.path.join(self.data_dir, self.split, image_file)
         image = Image.open(image_path).convert("RGB")
         image = self.transform(image)
+        if self.grayscale:
+            image = image.mean(dim=0, keepdim=True)
 
         if self.trend:
             image_file_3hr = self.image_files_3hr[item]
             image_path_3hr = os.path.join(self.data_dir, self.split, image_file_3hr)
             image_3hr = Image.open(image_path_3hr).convert("RGB")
             image_3hr = self.transform(image_3hr)
+            if self.grayscale:
+                image_3hr = image_3hr.mean(dim=0, keepdim=True)
             image = (image, image_3hr)
+            print(image_file, image_file_3hr)
 
         # Get the label tensor
         evlp_id = int(
@@ -205,21 +235,59 @@ class OutcomeDataset(Dataset):
             label = 1.0 if label == 2 else 0.0
         elif self.label_type == "outcome":
             label = 1.0 if label == 1 else 0.0
+        else:
+            label = int(label)
         label = torch.tensor(label)
 
-        return image, label
+        if self.return_label:
+            return image, label
+        else:
+            return image
+
+    def get_ids_and_labels(self):
+        ids, labels = [], []
+        for image_file in self.image_files:
+            evlp_id = int(image_file.split("_")[0][4:])
+            ids.append(evlp_id)
+            labels.append(self.labels_df.loc[evlp_id, "Outcome"])
+        return ids, labels
+
+    def get_original_image(self, item):
+        image_file = self.image_files[item]
+        image_path = os.path.join(self.data_dir, self.split, image_file)
+        image = Image.open(image_path).convert("RGB")
+        image = image.resize((self.resolution, self.resolution))
+
+        if self.trend:
+            image_file_3hr = self.image_files_3hr[item]
+            image_path_3hr = os.path.join(self.data_dir, self.split, image_file_3hr)
+            image_3hr = Image.open(image_path_3hr).convert("RGB")
+            image_3hr = image_3hr.resize((self.resolution, self.resolution))
+            image = (image, image_3hr)
+
+        return image
 
 
 def test_dataloader():
+    # train_dataloader = OutcomeDataModule(
+    #     data_dir="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/EVLP_CXR/recipient_outcome/Double/Main/",
+    #     resolution=224,
+    #     label_type="transplant",
+    #     batch_size=2,
+    # )
+    # train_dataloader.setup(stage="fit")
+    # train_dataloader = train_dataloader.train_dataloader()
+    # it = iter(train_dataloader)
+    # for _ in range(10):
+    #     train_features, train_labels = next(it)
 
-    train_dataloader = OutcomeDataModule(
+    dataset = OutcomeDataset(
         data_dir="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/EVLP_CXR/recipient_outcome/Double/Main/",
+        split="val",
         resolution=224,
-        label_type="transplant",
-        batch_size=2,
+        label_type="multiclass",
+        trend=True,
     )
-    train_dataloader.setup(stage="fit")
-    train_dataloader = train_dataloader.train_dataloader()
-    it = iter(train_dataloader)
-    for _ in range(10):
-        train_features, train_labels = next(it)
+    ids, labels = dataset.get_ids_and_labels()
+    # image_files = [img for i, img in enumerate(image_files) if np.isnan(labels[i])]
+    print(len(labels))
