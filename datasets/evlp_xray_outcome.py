@@ -256,16 +256,17 @@ class OutcomeDataset(Dataset):
         image_file = self.image_files[item]
         image_path = os.path.join(self.data_dir, self.split, image_file)
         image = Image.open(image_path).convert("RGB")
-        image = image.resize((self.resolution, self.resolution))
+        image_resized = image.resize((self.resolution, self.resolution))
 
         if self.trend:
             image_file_3hr = self.image_files_3hr[item]
             image_path_3hr = os.path.join(self.data_dir, self.split, image_file_3hr)
             image_3hr = Image.open(image_path_3hr).convert("RGB")
-            image_3hr = image_3hr.resize((self.resolution, self.resolution))
+            image_3hr_resized = image_3hr.resize((self.resolution, self.resolution))
             image = (image, image_3hr)
+            image_resized = (image_resized, image_3hr_resized)
 
-        return image
+        return image, image_resized
 
 
 def test_dataloader():

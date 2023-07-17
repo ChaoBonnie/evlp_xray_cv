@@ -53,10 +53,17 @@ def saliency_map(model_path, model_backbone, label_type, image_index):
         return_label=False,
     )
     image_to_use = dataset[image_index]
-    rgb_img_1hr, rgb_img_3hr = dataset.get_original_image(image_index)
+    (rgb_img_1hr_orig, rgb_img_3hr_orig), (
+        rgb_img_1hr,
+        rgb_img_3hr,
+    ) = dataset.get_original_image(image_index)
     rgb_img_1hr, rgb_img_3hr = (
         np.array(rgb_img_1hr).astype(np.float32) / 255,
         np.array(rgb_img_3hr).astype(np.float32) / 255,
+    )
+    rgb_img_1hr_orig, rgb_img_3hr_orig = (
+        np.array(rgb_img_1hr_orig).astype(np.float32) / 255,
+        np.array(rgb_img_3hr_orig).astype(np.float32) / 255,
     )
 
     model_single_tensor = WrapperModel(model)
@@ -66,10 +73,12 @@ def saliency_map(model_path, model_backbone, label_type, image_index):
             input_tensor = image_to_use[0]
             model_single_tensor.store_3hr(image_to_use[1].unsqueeze(0))
             rgb_img = rgb_img_1hr
+            rgb_img_orig = rgb_img_1hr_orig
         else:
             input_tensor = image_to_use[1]
             model_single_tensor.store_1hr(image_to_use[0].unsqueeze(0))
             rgb_img = rgb_img_3hr
+            rgb_img_orig = rgb_img_3hr_orig
         # source code: https://github.com/jacobgil/pytorch-grad-cam
 
         target_layers = [model_single_tensor.trend_model.feature_extractor.layer4[-1]]
@@ -103,11 +112,13 @@ def saliency_map(model_path, model_backbone, label_type, image_index):
 
         # In this example grayscale_cam has only one image in the batch:
         grayscale_cam = grayscale_cam[0, :]
+        grayscale_cam = np.array(
+            Image.fromarray(grayscale_cam).resize(rgb_img_orig.shape[1::-1])
+        )
         visualization = show_cam_on_image(
-            rgb_img, grayscale_cam, use_rgb=True, image_weight=0.7
+            rgb_img_orig, grayscale_cam, use_rgb=True, image_weight=0.7
         )
         visualization = Image.fromarray(visualization)
-        # visualization = visualization.resize((270, 224))
         visualization.save(
             "/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/inference/Adam_best_models/EVLP_saliency_"
             + timepoint
@@ -144,12 +155,12 @@ class WrapperModel(nn.Module):
         return self.trend_model(x_tuple)
 
 
-# image_index = randint(0, 129)
+image_index = randint(0, 129)
 saliency_map(
     model_path="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/saved_models/finetune_evlp/recipient_outcome/updatedcsv_Adam/trend_resnet50_CADLab_recipient/lightning_logs/version_8808590/checkpoints/epoch=33-step=1122.ckpt",
     model_backbone="resnet50",
     label_type="multiclass",
-    image_index=7,
+    image_index=21,
 )
 # saliency_map(
 #     model_path="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/saved_models/finetune_evlp/recipient_outcome/updatedcsv_Adam/trend_resnet50_CADLab_recipient/lightning_logs/version_8808590/checkpoints/epoch=33-step=1122.ckpt",
