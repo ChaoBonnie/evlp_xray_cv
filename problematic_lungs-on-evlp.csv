@@ -1,0 +1,24 @@
+Evlp Id No,Evlp Left Yn,Evlp Right Yn,Lung,P Evlp Lung Disposition L,P Evlp Lung Disposition R,Transplanted?,Lung Transplanted
+907,Y,Y,LEFT,Declined,Unknown,N,NONE
+906,N,N,BOTH,Declined,Declined,N,NONE
+888,Y,Y,RIGHT,Unknown,Transplanted,Y,RIGHT
+862,N,N,BOTH,Declined,Declined,N,NONE
+847,Y,Y,LEFT,Transplanted,Unknown,Y,LEFT
+845,Y,Y,RIGHT,Unknown,Transplanted,Y,RIGHT
+809,Y,Y,RIGHT,Unknown,Declined,N,NONE
+808,Y,Y,LEFT,Transplanted,Unknown,Y,LEFT
+706,N,N,RIGHT,Unknown,Declined,N,NONE
+702,N,N,LEFT,Declined,Unknown,N,NONE
+699,Y,Y,RIGHT,Unknown,Declined,N,NONE
+644,Y,Y,LEFT,Transplanted,Transplanted,Y,BOTH
+639,Y,Y,LEFT,Declined,Unknown,N,NONE
+616,N,N,BOTH,Declined,Declined,N,NONE
+552,Y,Y,RIGHT,Unknown,Declined,N,NONE
+542,Y,Y,LEFT,Declined,Unknown,N,NONE
+534,Y,Y,RIGHT,Declined,Declined,N,NONE
+496,Y,N,BOTH,Declined,Declined,N,NONE
+482,Y,Y,LEFT,Transplanted,Unknown,Y,LEFT
+476,Y,Y,LEFT,Transplanted,Unknown,Y,LEFT
+424,N,Y,BOTH,Declined,Transplanted,Y,RIGHT
+83,Y,Y,LEFT,Transplanted,Unknown,Y,LEFT
+82,Y,Y,LEFT,Transplanted,Declined,Y,LEFT

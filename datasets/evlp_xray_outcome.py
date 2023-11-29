@@ -138,7 +138,7 @@ class OutcomeDataset(Dataset):
 
             image_files_1hr.sort()
             image_files_3hr.sort()
-            filetered_image_files_1hr = []
+            filtered_image_files_1hr = []
             i = 0
             for image_file_3hr in image_files_3hr:
                 image_name_3hr = image_file_3hr.split("_")[0]
@@ -149,13 +149,13 @@ class OutcomeDataset(Dataset):
                         ), f"No 1hr image found for {image_name_3hr}"  # EVLP590 has no 1hr image -> moved out of dataset
                     image_name_1hr = image_files_1hr[i].split("_")[0]
                     if image_name_1hr == image_name_3hr:
-                        filetered_image_files_1hr.append(image_files_1hr[i])
+                        filtered_image_files_1hr.append(image_files_1hr[i])
                         i += 1
                         break
                     else:
                         i += 1
 
-            self.image_files = filetered_image_files_1hr
+            self.image_files = filtered_image_files_1hr
             self.image_files_3hr = image_files_3hr
 
             assert len(self.image_files) == len(self.image_files_3hr)  # Sanity check

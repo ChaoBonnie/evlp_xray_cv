@@ -1,6 +1,7 @@
 import numpy as np
 from random import randint
 from torch import nn
+import seaborn as sns
 from PIL import Image
 from pytorch_grad_cam import (
     GradCAM,
@@ -81,46 +82,27 @@ def saliency_map(model_path, model_backbone, label_type, image_index):
             rgb_img_orig = rgb_img_3hr_orig
         # source code: https://github.com/jacobgil/pytorch-grad-cam
 
-        target_layers = [model_single_tensor.trend_model.feature_extractor.layer4[-1]]
-        # Create an input tensor image for your model
-        # Note: input_tensor can be a batch tensor with several images!
-
-        # Construct the CAM object once, and then re-use it on many images:
+        target_layers = [model_single_tensor.trend_model.feature_extractor.layer3[-1]]
         cam = GradCAM(model=model_single_tensor, target_layers=target_layers)
+        targets = None  # the highest scoring category will be used for every image in the batch
 
-        # You can also use it within a with statement, to make sure it is freed,
-        # In case you need to re-create it inside an outer loop:
-        # with GradCAM(model=model, target_layers=target_layers, use_cuda=args.use_cuda) as cam:
-        #   ...
-
-        # We have to specify the target we want to generate
-        # the Class Activation Maps for.
-        # If targets is None, the highest scoring category
-        # will be used for every image in the batch.
-        # Here we use ClassifierOutputTarget, but you can define your own custom targets
-        # That are, for example, combinations of categories, or specific outputs in a non standard model.
-
-        # for class_i in range(0, 3):
-        targets = None  # Use ClassifierOutputTarget(class_i) if a specific class is to be mapped
-
-        # You can also pass aug_smooth=True and eigen_smooth=True, to apply smoothing.
         grayscale_cam = cam(
             input_tensor=input_tensor.unsqueeze(0),
             targets=targets,
             aug_smooth=True,
         )
-
-        # In this example grayscale_cam has only one image in the batch:
         grayscale_cam = grayscale_cam[0, :]
         grayscale_cam = np.array(
             Image.fromarray(grayscale_cam).resize(rgb_img_orig.shape[1::-1])
         )
-        visualization = show_cam_on_image(
-            rgb_img_orig, grayscale_cam, use_rgb=True, image_weight=0.7
+        visualization = visualize_saliency(
+            rgb_img_orig, grayscale_cam, 0.6, [0.0, 0.5, 0.7]
         )
-        visualization = Image.fromarray(visualization)
+        visualization = Image.fromarray((visualization * 255).astype(np.uint8))
         visualization.save(
-            "/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/inference/Adam_best_models/EVLP_saliency_"
+            "/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/inference/Adam_best_models/EVLP"
+            + str(image_index)
+            + "_saliency_"
             + timepoint
             + ".png"
         )
@@ -155,12 +137,36 @@ class WrapperModel(nn.Module):
         return self.trend_model(x_tuple)
 
 
+def visualize_saliency(
+    image: np.ndarray,
+    saliency_map: np.ndarray,
+    saliency_weight: float,
+    saliency_color: list[float],
+) -> np.ndarray:
+    """Visualize the saliency map as an overlay on the image.
+
+    Args:
+        image (np.ndarray): [height, width, 3], RGB image with values between 0-1.
+        saliency_map (np.ndarray): [height, width], saliency map with values between 0-1.
+        saliency_weight (float): Maximum alpha value for the saliency map (0-1).
+        saliency_color (list[float]): RGB color for the saliency map with values between 0-1.
+
+    Returns:
+        np.ndarray: [height, width, 3], RGB image with saliency map overlay and values between 0-1.
+    """
+    saliency_color = np.asarray(saliency_color)[np.newaxis, np.newaxis, :]
+    saliency_map = saliency_map[:, :, np.newaxis].clip(min=0, max=1)
+    saliency_map_weight = saliency_map * saliency_weight
+    image = image * (1 - saliency_map_weight) + saliency_color * saliency_map_weight
+    return image
+
+
 image_index = randint(0, 129)
 saliency_map(
     model_path="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/saved_models/finetune_evlp/recipient_outcome/updatedcsv_Adam/trend_resnet50_CADLab_recipient/lightning_logs/version_8808590/checkpoints/epoch=33-step=1122.ckpt",
     model_backbone="resnet50",
     label_type="multiclass",
-    image_index=21,
+    image_index=image_index,
 )
 # saliency_map(
 #     model_path="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/saved_models/finetune_evlp/recipient_outcome/updatedcsv_Adam/trend_resnet50_CADLab_recipient/lightning_logs/version_8808590/checkpoints/epoch=33-step=1122.ckpt",
