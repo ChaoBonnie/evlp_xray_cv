@@ -11,7 +11,7 @@ from torchvision.models import (
     resnet50,
     resnext50_32x4d,
 )
-from datasets.evlp_xray_outcome import OutcomeDataModule
+from datasets.evlp_xray_leftright_suitability import LeftRightDataModule
 from tasks.binary_classification import BinaryClassificationTask
 from tasks.multilabel_binary_classification import MultiLabelBinaryClassificationTask
 from tasks.multiclass_classification import MulticlassClassificationTask
@@ -54,7 +54,7 @@ def main(
         norm_mean = (0.485, 0.456, 0.406)
         norm_std = (0.229, 0.224, 0.225)
         grayscale = False
-    data = OutcomeDataModule(
+    data = LeftRightDataModule(
         data_dir,
         label_type=label_type,
         trend=trend,

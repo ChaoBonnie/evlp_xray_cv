@@ -2,6 +2,11 @@
 .vscode
 __pycache__
 .not_used
+*.csv
+*.png
+*.xlsx
+*.xls
+*.csv
 data
 saved_models
 cluster_scripts/outputs/*.out

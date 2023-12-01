@@ -113,9 +113,11 @@ class LeftRightDataset(Dataset):
         self.split = split
         self.data_dir = data_dir
         self.split_file = (
-            pd.read_csv(f"data/trend_random_{split}-list.csv")
+            pd.read_csv(os.path.join(data_dir, f"data/trend_random_{split}-list.csv"))
             if trend
-            else pd.read_csv(f"data/no-trend_random_{split}-list.csv")
+            else pd.read_csv(
+                os.path.join(data_dir, f"data/no-trend_random_{split}-list.csv")
+            )
         )
         self.labels_df = pd.read_csv(
             os.path.join(data_dir, "labels.csv"), index_col="EVLP_ID"
@@ -207,9 +209,9 @@ class LeftRightDataset(Dataset):
 
         # Get the label tensor
         label = (
-            int(self.labels_df.loc[id, "disposition_left"])
+            float(self.labels_df.loc[id, "disposition_left"])
             if is_left
-            else int(self.labels_df.loc[id, "disposition_right"])
+            else float(self.labels_df.loc[id, "disposition_right"])
         )
         label = torch.tensor(label)
 

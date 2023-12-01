@@ -80,8 +80,11 @@ class BinaryClassificationTask(pl.LightningModule):
         self.make_logs()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=self.lr, weight_decay=2e-5, momentum=0.9
+        # optimizer = torch.optim.SGD(
+        #     self.model.parameters(), lr=self.lr, weight_decay=2e-5, momentum=0.9
+        # )
+        optimizer = torch.optim.Adam(
+            self.model.parameters(), lr=self.lr, weight_decay=2e-5
         )
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer=optimizer, T_0=10, T_mult=1, eta_min=1e-6
