@@ -35,24 +35,10 @@ class MulticlassClassificationTask(pl.LightningModule):
         self.train_accuracy = Accuracy(task="multiclass", num_classes=3)
         self.train_cm = ConfusionMatrix(task="multiclass", num_classes=3)
         self.train_auroc = AUROC(task="multiclass", num_classes=3, average="macro")
-        # self.train_calibration_error = CalibrationError(
-        #     task="multiclass", num_classes=3, num_bins=10
-        # )
-        # self.train_precision = Precision(
-        #     task="multiclass", num_classes=3, average="macro"
-        # )
-        # self.train_recall = Recall(task="multiclass", num_classes=3, average="macro")
 
         self.val_accuracy = Accuracy(task="multiclass", num_classes=3)
         self.val_cm = ConfusionMatrix(task="multiclass", num_classes=3)
         self.val_auroc = AUROC(task="multiclass", num_classes=3, average="macro")
-        # self.train_calibration_error = CalibrationError(
-        #     task="multiclass", num_classes=3, num_bins=10
-        # )
-        # self.val_precision = Precision(
-        #     task="multiclass", num_classes=3, average="macro"
-        # )
-        # self.val_recall = Recall(task="multiclass", num_classes=3, average="macro")
 
     def forward(self, x):
         if self.frozen_feature_extractor is None:
@@ -118,18 +104,12 @@ class MulticlassClassificationTask(pl.LightningModule):
                 self.train_accuracy,
                 self.train_cm,
                 self.train_auroc,
-                # self.train_calibration_error,
-                # self.train_precision,
-                # self.train_recall,
             )
         else:
             acc, cm, auroc = (
                 self.val_accuracy,
                 self.val_cm,
                 self.val_auroc,
-                # self.val_calibration_error,
-                # self.val_precision,
-                # self.val_recall,
             )
 
         y_pred = torch.softmax(y_pred, dim=-1)
@@ -137,9 +117,6 @@ class MulticlassClassificationTask(pl.LightningModule):
         acc.update(y_pred, y_true)
         cm.update(y_pred.argmax(dim=-1), y_true)
         auroc.update(y_pred, y_true)
-        # calibration_error.update(y_pred, y_true)
-        # precision.update(y_pred, y_true)
-        # recall.update(y_pred, y_true)
 
     def make_logs(self):
         if self.training:
@@ -147,9 +124,6 @@ class MulticlassClassificationTask(pl.LightningModule):
                 self.train_accuracy,
                 self.train_cm,
                 self.train_auroc,
-                # self.train_calibration_error,
-                # self.train_precision,
-                # self.train_recall,
             )
             metric_prefix = "train"
         else:
@@ -157,27 +131,16 @@ class MulticlassClassificationTask(pl.LightningModule):
                 self.val_accuracy,
                 self.val_cm,
                 self.val_auroc,
-                # self.val_calibration_error,
-                # self.val_precision,
-                # self.val_recall,
             )
             metric_prefix = "val"
 
         self.log(f"{metric_prefix}_accuracy", acc.compute())
         self.log_confusion_matrix(f"{metric_prefix}_cm", cm.compute())
         self.log(f"{metric_prefix}_auroc", auroc.compute())
-        # self.log_calibration_error(
-        #     f"{metric_prefix}_calibration_error", calibration_error.compute()
-        # )
-        # self.log_precision(f"{metric_prefix}_precision", precision.compute())
-        # self.log_recall(f"{metric_prefix}_recall", recall.compute())
 
         acc.reset()
         cm.reset()
         auroc.reset()
-        # calibration_error.reset()
-        # precision.reset()
-        # recall.reset()
 
     def log_confusion_matrix(self, name, cm):
         df_cm = pd.DataFrame(cm.cpu().numpy(), index=range(3), columns=range(3))

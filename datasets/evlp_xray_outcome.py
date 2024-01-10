@@ -140,6 +140,8 @@ class OutcomeDataset(Dataset):
             image_files_3hr.sort()
             filtered_image_files_1hr = []
             i = 0
+
+            # The following for loop eliminates cases without both 1h and 3h images, and also ensures that the 1hr and 3hr images are paired correctly
             for image_file_3hr in image_files_3hr:
                 image_name_3hr = image_file_3hr.split("_")[0]
                 while True:
@@ -174,9 +176,7 @@ class OutcomeDataset(Dataset):
             if self.trend:
                 self.image_files_3hr = filtered_image_files_3hr
 
-        # print(len(self.image_files))
-
-        # This is where to put data augmentation
+        # Image augmentation
         if split == "train":
             self.transform = transforms.Compose(
                 [
@@ -198,11 +198,6 @@ class OutcomeDataset(Dataset):
                     transforms.Normalize(mean=norm_mean, std=norm_std),
                 ]
             )
-        # self.transform = transforms.Compose([
-        #     transforms.Resize((resolution, resolution)),
-        #     transforms.ToTensor(),
-        #     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
-        # ])
 
     def __len__(self):
         return len(self.image_files)
@@ -224,7 +219,6 @@ class OutcomeDataset(Dataset):
             if self.grayscale:
                 image_3hr = image_3hr.mean(dim=0, keepdim=True)
             image = (image, image_3hr)
-            print(image_file, image_file_3hr)
 
         # Get the label tensor
         evlp_id = int(
@@ -244,7 +238,7 @@ class OutcomeDataset(Dataset):
         else:
             return image
 
-    def get_ids_and_labels(self):
+    def get_ids_and_labels(self):  # Used for data inference
         ids, labels = [], []
         for image_file in self.image_files:
             evlp_id = int(image_file.split("_")[0][4:])
@@ -252,7 +246,7 @@ class OutcomeDataset(Dataset):
             labels.append(self.labels_df.loc[evlp_id, "Outcome"])
         return ids, labels
 
-    def get_original_image(self, item):
+    def get_original_image(self, item):  # Used for saliency mapping
         image_file = self.image_files[item]
         image_path = os.path.join(self.data_dir, self.split, image_file)
         image = Image.open(image_path).convert("RGB")
@@ -270,17 +264,17 @@ class OutcomeDataset(Dataset):
 
 
 def test_dataloader():
-    # train_dataloader = OutcomeDataModule(
-    #     data_dir="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/EVLP_CXR/recipient_outcome/Double/Main/",
-    #     resolution=224,
-    #     label_type="transplant",
-    #     batch_size=2,
-    # )
-    # train_dataloader.setup(stage="fit")
-    # train_dataloader = train_dataloader.train_dataloader()
-    # it = iter(train_dataloader)
-    # for _ in range(10):
-    #     train_features, train_labels = next(it)
+    train_dataloader = OutcomeDataModule(
+        data_dir="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/EVLP_CXR/recipient_outcome/Double/Main/",
+        resolution=224,
+        label_type="transplant",
+        batch_size=2,
+    )
+    train_dataloader.setup(stage="fit")
+    train_dataloader = train_dataloader.train_dataloader()
+    it = iter(train_dataloader)
+    for _ in range(10):
+        train_features, train_labels = next(it)
 
     dataset = OutcomeDataset(
         data_dir="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/EVLP_CXR/recipient_outcome/Double/Main/",
@@ -290,5 +284,5 @@ def test_dataloader():
         trend=True,
     )
     ids, labels = dataset.get_ids_and_labels()
-    # image_files = [img for i, img in enumerate(image_files) if np.isnan(labels[i])]
+    image_files = [img for i, img in enumerate(image_files) if np.isnan(labels[i])]
     print(len(labels))

@@ -1,16 +1,19 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelBinarizer
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, roc_auc_score, accuracy_score
 from scipy.stats import spearmanr, mannwhitneyu
 
 
-def prc():
+def wholelung_metrics():
     y_df = pd.read_csv(
-        "/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/inference/Adam_best_models/resnet50_CADLab_recipient_predictions.csv"
+        "/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/inference/whole-lung_classification/resnet50_CADLab_recipient_predictions.csv"
     )
     y_test = y_df["label"]
-    y_pred = y_df[["pred_prob(class=0)", "pred_prob(class=1)", "pred_prob(class=2)"]]
+    y_prob = y_df[["pred_prob(class=0)", "pred_prob(class=1)", "pred_prob(class=2)"]]
+    indices = np.argmax(y_prob.values, axis=1)
+    y_sorted = np.unique(y_test)
+    y_pred = y_sorted[indices]
 
     binarize = LabelBinarizer()
     binarize.fit(y_test)
@@ -19,10 +22,10 @@ def prc():
     print("Metric: PRC")
     print(
         "Average over classes: ",
-        average_precision_score(y_test_binarized, y_pred, average="macro"),
+        average_precision_score(y_test_binarized, y_prob, average="macro"),
     )
     print(
-        "Per class: ", average_precision_score(y_test_binarized, y_pred, average=None)
+        "Per class: ", average_precision_score(y_test_binarized, y_prob, average=None)
     )
     print(
         "Baseline Class 0 PRC: ",
@@ -36,6 +39,16 @@ def prc():
         "Baseline Class 2 PRC: ",
         y_test_binarized[:, 2].sum() / y_test_binarized.shape[0],
     )
+
+    print("Metric: AUC")
+    print(
+        "Average over classes: ",
+        roc_auc_score(y_test_binarized, y_prob, average="macro"),
+    )
+    print("Per class: ", roc_auc_score(y_test_binarized, y_prob, average=None))
+
+    print("Metric: Accuracy")
+    print("Overall: ", accuracy_score(y_test, y_pred))
 
 
 def pc9_correlations():
@@ -238,4 +251,64 @@ def radiology_impression_pc9():
     )
 
 
-radiology_impression_pc9()
+def leftright_analysis():
+    df = pd.read_csv(
+        "/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/evlp_xray_cv/inference/left-right_suitability/trend/efficientnetB2_NIH_leftright-TORex_predictions.csv",
+        index_col=0,
+    )
+
+    double_to_single_transplant = 0
+    double_to_single_correct = 0
+    for row in df.itertuples():
+        df.at[row.Index, "pred_left"] = (
+            0 if df.at[row.Index, "decline_prob_left"] < 0.50 else 1
+        )
+        df.at[row.Index, "pred_right"] = (
+            0 if df.at[row.Index, "decline_prob_right"] < 0.50 else 1
+        )
+
+        if df.at[row.Index, "label_left"] != df.at[row.Index, "label_right"]:
+            double_to_single_transplant += 1
+            if (df.at[row.Index, "label_left"] == df.at[row.Index, "pred_left"]) & (
+                df.at[row.Index, "label_right"] == df.at[row.Index, "pred_right"]
+            ):
+                double_to_single_correct += 1
+
+    print("Length of Validation Dataset: ", len(df))
+    print(
+        "Occurrences of Double-to-Single-Lung Transplantations: ",
+        double_to_single_transplant,
+    )
+    print(
+        "Accuracy of Double-to-Single Transplantation Predictions: ",
+        double_to_single_correct / double_to_single_transplant,
+    )
+    print(
+        "Left-Lung Accuracy Score: ", accuracy_score(df["label_left"], df["pred_left"])
+    )
+    print(
+        "Right-Lung Accuracy Score: ",
+        accuracy_score(df["label_right"], df["pred_right"]),
+    )
+    print("Left-Lung AUROC: ", roc_auc_score(df["label_left"], df["decline_prob_left"]))
+    print(
+        "Right-Lung AUROC: ",
+        roc_auc_score(df["label_right"], df["decline_prob_right"]),
+    )
+    print(
+        "Overall Accuracy: ",
+        accuracy_score(
+            pd.concat([df["label_left"], df["label_right"]]),
+            pd.concat([df["pred_left"], df["pred_right"]]),
+        ),
+    )
+    print(
+        "Overall AUROC: ",
+        roc_auc_score(
+            pd.concat([df["label_left"], df["label_right"]]),
+            pd.concat([df["decline_prob_left"], df["decline_prob_right"]]),
+        ),
+    )
+
+
+leftright_analysis()

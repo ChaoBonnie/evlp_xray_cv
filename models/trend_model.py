@@ -24,7 +24,7 @@ class TrendModel(nn.Module):
         )  # (batch, 3, x, y), (batch, 3, x, y) -> (batch*2, 3, x, y)
         feats_stacked = self.feature_extractor(x_stacked)
         feats_stacked = feats_stacked.flatten(1)
-        # pass through your CNN (1 CNN processes 1hr and 3hr independently). (batch*2, 3, x, y) -> (batch*2, num_features)
+        # pass through the CNN (1 CNN processes 1hr and 3hr independently). (batch*2, 3, x, y) -> (batch*2, num_features)
 
         # Get the trend features
         feats_1hr, feats_3hr = torch.split(

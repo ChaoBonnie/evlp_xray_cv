@@ -36,6 +36,7 @@ def main(
     if not pretrain_was_multilabel:
         assert pretrain_num_labels == 1
 
+    # Set the resolution of the images
     if model_backbone == "efficientnetB2":
         resolution = 256
     elif model_backbone == "efficientnetB3":
@@ -45,7 +46,7 @@ def main(
     else:
         resolution = 224
 
-    # Load your data
+    # Set image normalization parameters
     if pretrain_on_all_public_data:
         norm_mean = (0.5, 0.5, 0.5)
         norm_std = (1 / 2048, 1 / 2048, 1 / 2048)
@@ -54,6 +55,8 @@ def main(
         norm_mean = (0.485, 0.456, 0.406)
         norm_std = (0.229, 0.224, 0.225)
         grayscale = False
+
+    # Create the data module
     data = LeftRightDataModule(
         data_dir,
         label_type=label_type,
@@ -78,32 +81,6 @@ def main(
     )
 
     # Create an instance of the task we want to be training on
-
-    """
-    Tasks used for RLS classification:
-    
-    if binarize and aggregate_labels and model = load_pretrained(
-        model_backbone=model_backbone,
-        finetune_num_labels=num_label,
-        trend=True,
-        pretrain_num_labels=num_label,
-        pretrain_path=None,
-        pretrain_was_multilabel=False,
-        finetune_all=True,
-    )en_feature_extractor
-        )
-    elif binarize and not aggregate_labels:
-        task = MultiLabelBinaryClassificationTask(
-            model=model,
-            n_labels=data.num_labels,
-            frozen_feature_extractor=frozen_feature_extractor,
-        )
-    else:
-        raise ValueError(
-            f"Currently unsupported training combination for:"
-            f'["binarize", "discretize", "aggregate_regions", "aggregate_labels"]'
-        )
-    """
     if (label_type == "transplant") or (label_type == "outcome"):
         task = BinaryClassificationTask(
             model=model, frozen_feature_extractor=frozen_feature_extractor
@@ -113,6 +90,7 @@ def main(
             model=model, frozen_feature_extractor=frozen_feature_extractor
         )
 
+    # Save a checkpoint of the model backbone based on the lowest val_loss
     # todo: add an EarlyStopping callback
     checkpoint_callback = ModelCheckpoint(monitor="val_loss", save_top_k=1, mode="min")
 
@@ -136,7 +114,7 @@ def load_pretrained(
     finetune_num_labels: int,
     finetune_all: bool,
 ) -> Tuple[nn.Module, Optional[nn.Module]]:
-    # Step 1: recreate the pre-trained model backbone, so that we can load its weights
+    # Recreate the pre-trained model backbone, so that we can load its weights. Change the classification layer to take in the number of features and output the number of labels in the pretrained model.
     if model_backbone == "resnet50":
         model = resnet50(pretrained=False)
         model.fc = nn.Linear(
@@ -164,11 +142,11 @@ def load_pretrained(
     else:
         raise ValueError(f"Unknown model backbone: {model_backbone}")
 
-    # Step 2: load the model from its checkpoint
+    # Load the model from its checkpoint
     if pretrain_path is not None:
-        if pretrain_path.split(".")[1] == "tar":
+        if pretrain_path.split(".")[1] == "tar":  # if the pretrain model is from timm
             timm.models.helpers.load_checkpoint(model, pretrain_path)
-        else:
+        else:  # if the pretrain model is from pytorch lightning
             if pretrain_was_multilabel:
                 task = MultiLabelBinaryClassificationTask.load_from_checkpoint(
                     pretrain_path, model=model, n_classes=pretrain_num_labels
@@ -179,7 +157,7 @@ def load_pretrained(
                     pretrain_path, model=model
                 )
                 model = task.model
-    elif pretrain_on_all_public_data:
+    elif pretrain_on_all_public_data:  # if the pretrain model is from torchxrayvision
         if model_backbone == "resnet50":
             model = xrv.models.ResNet(weights="resnet50-res512-all")
         elif model_backbone == "densenet121":
@@ -189,14 +167,14 @@ def load_pretrained(
                 f"Unsupported model backbone: {model_backbone} for torchxrayvision"
             )
 
-    # Step 3: Swap out the last layer for our number of labels
+    # Swap out the last layer for our number of labels in the EVLP dataset. Set the classification layer to Identity if we are doing trend classification.
     if (model_backbone == "resnet50") | (model_backbone == "resnext50"):
         if not trend:
-            print("old num-classes: ", model.fc)  # 1000
+            print("old num-classes: ", model.fc)
             model.fc = nn.Linear(
                 in_features=model.fc.in_features, out_features=finetune_num_labels
             )
-            print("new num-classes: ", model.fc)  # 3
+            print("new num-classes: ", model.fc)
         else:
             if pretrain_on_all_public_data:
                 num_feats = model.model.fc.in_features
@@ -207,12 +185,12 @@ def load_pretrained(
                 model.fc = nn.Identity()
     elif model_backbone == "densenet121":
         if not trend:
-            print("old num-classes: ", model.classifier)  # 1000
+            print("old num-classes: ", model.classifier)
             model.classifier = nn.Linear(
                 in_features=model.classifier.in_features,
                 out_features=finetune_num_labels,
             )
-            print("new num-classes: ", model.classifier)  # 3
+            print("new num-classes: ", model.classifier)
         else:
             if pretrain_on_all_public_data:
                 num_feats = model.model.classifier.in_features
@@ -223,17 +201,17 @@ def load_pretrained(
                 model.classifier = nn.Identity()
     elif (model_backbone == "efficientnetB2") | (model_backbone == "efficientnetB3"):
         if not trend:
-            print("old num-classes: ", model.head)  # 1000
-            model.reset_classifier(num_classes=pretrain_num_labels)
-            print("new num-classes: ", model.head)  # 3
+            print("old num-classes: ", model.classifier)
+            model.reset_classifier(num_classes=finetune_num_labels)
+            print("new num-classes: ", model.classifier)
         else:
             num_feats = model.num_features
             model.classifier = nn.Identity()
     elif model_backbone == "rexnet100":
         if not trend:
-            print("old num-classes: ", model.head)  # 1000
-            model.reset_classifier(num_classes=pretrain_num_labels)
-            print("new num-classes: ", model.head)  # 3
+            print("old num-classes: ", model.head)
+            model.reset_classifier(num_classes=finetune_num_labels)
+            print("new num-classes: ", model.head)
         else:
             num_feats = model.num_features
             model = nn.Sequential(
@@ -241,18 +219,10 @@ def load_pretrained(
                 model.features,
                 nn.AdaptiveAvgPool2d(1),
             )
-    # elif args.model == "rexnet_100":
-    #     if not trend:
-    #         print("old num-classes: ", model.head)  # 1000
-    #         model.reset_classifier(num_classes=finetune_num_labels) ### Find the last layer of rexnet_100!
-    #         print("new num-classes: ", model.head)  # 3
-    #     else:
-    #         num_feats = model.head.in_features
-    #         model.head = nn.Identity()
     else:
         raise ValueError(f"Unknown model backbone: {model_backbone}")
 
-    # Step 4: Set the trainable parameters
+    # Set the trainable parameters (current methods only use finetune_all=True)
     if finetune_all:
         frozen_feature_extractor = None
     else:
@@ -263,6 +233,7 @@ def load_pretrained(
         else:
             raise ValueError(f"Unknown model backbone: {model_backbone}")
 
+    # If we are doing classifications based on image trends, wrap the model in a separate TrendModel
     if trend:
         model = TrendModel(
             feature_extractor=model,
@@ -274,7 +245,6 @@ def load_pretrained(
 
 
 if __name__ == "__main__":
-    # todo: some of these arguments might have to change for EVLP fine-tuning (e.g. you need to specify a pre-trained model path)
     parser = argparse.ArgumentParser(description="Fine-tune on EVLP dataset.")
     parser.add_argument(
         "--data_dir", required=True, type=str, help="Directory containing EVLP data."
@@ -303,7 +273,7 @@ if __name__ == "__main__":
         "--label_type",
         required=True,
         type=str,
-        help="transplant, outcome, or multiclass labels.",
+        help="transplant (Tx/Dec), outcome (Vent <72h, >72h), or multiclass (Vent <72h, >72h, Dec) labels.",
     )
     parser.add_argument(
         "--trend",
@@ -317,43 +287,43 @@ if __name__ == "__main__":
         "--finetune_head",
         action="store_true",
         help="Fine-tune just the model head (last little bit).",
-    )
+    )  # Not used in the current methods
     parser.add_argument(
         "--pretrain_was_multilabel",
         action="store_true",
         help="Pre-trained model was trained on multi-label task.",
-    )
+    )  # Only used when implementing torchxrayvision models
     parser.add_argument(
         "--pretrain_on_all_public_data",
         action="store_true",
-        help="Pre-trained model was trained on the datasets: nih-pc-chex-mimic_ch-google-openi-rsna, described in the torchxrayvision library.",  # pretrain_num_labels = 18
-    )
+        help="Pre-trained model was trained on the datasets: nih-pc-chex-mimic_ch-google-openi-rsna, described in the torchxrayvision library.",
+    )  # Only used when implementing torchxrayvision models
     parser.add_argument(
         "--pretrain_num_labels",
         type=int,
         default=1,
         help="Number of labels used in the pre-training task.",
-    )
+    )  # pretrain_num_labels = 18 when implementing torchxrayvision models
     parser.add_argument(
         "--binarize",
         action="store_true",
         help="Turn label scores into binary finding/no-finding.",
-    )
+    )  # Not used in the current methods
     parser.add_argument(
         "--discretize",
         action="store_true",
         help="Turn label scores into some discrete quantiles (multi-class classification).",
-    )
+    )  # Not used in the current methods
     parser.add_argument(
         "--aggregate_regions",
         action="store_true",
         help="Combine labels across regions.",
-    )
+    )  # Not used in the current methods
     parser.add_argument(
         "--aggregate_labels",
         action="store_true",
         help="Combine labels across radiological finding types.",
-    )
+    )  # Not used in the current methods
     parser.add_argument(
         "--max_epochs",
         default=100,

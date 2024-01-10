@@ -11,12 +11,21 @@ from tasks.binary_classification import BinaryClassificationTask
 from tasks.multiclass_classification import MulticlassClassificationTask
 
 
+### Currently only support data inference using trend models ###
 def get_predicted_probabilities(
     model_path, model_backbone, label_type, csv_name, backbone_saved
 ):
     num_label = 3 if label_type == "multiclass" else 2
 
-    # if not backbone_saved:
+    # Set the resolution of the images
+    if model_backbone == "efficientnetB2":
+        resolution = 256
+    elif model_backbone == "efficientnetB3":
+        resolution = 288
+    else:
+        resolution = 224
+
+    # if not backbone_saved (i.e. logger=False in the classification task):
     model, _ = load_pretrained(
         model_backbone=model_backbone,
         finetune_num_labels=num_label,
@@ -36,9 +45,10 @@ def get_predicted_probabilities(
             model_path, model=model  # if not backbone_saved else None
         )
 
+    # Load validation data
     data_loader = OutcomeDataModule(
         data_dir="/home/bonnie/Documents/OneDrive_UofT/EVLP_X-ray_Project/EVLP_CXR/recipient_outcome/Double/Main/",
-        resolution=224,
+        resolution=resolution,
         label_type=label_type,
         trend=True,
         batch_size=1,
@@ -47,6 +57,7 @@ def get_predicted_probabilities(
     data_loader.setup(stage="fit")
     data_loader = data_loader.val_dataloader()
 
+    # Set a feature hook to get the image features prior to the classifier
     features = []
 
     def feature_hook(module, inputs, outputs):
@@ -68,8 +79,12 @@ def get_predicted_probabilities(
 
     features = torch.concatenate(features)
     features = features.numpy()
+
+    # Save all output features
     all_features_df = pd.DataFrame(features)
     all_features_df.to_csv(csv_name.replace(".csv", "_all-features.csv"), index=False)
+
+    # Save PCA features
     features = PCA(n_components=10).fit_transform(features)
     feature_df = {"id": ids, "label": labels}
     for i in range(features.shape[1]):

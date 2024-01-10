@@ -112,8 +112,8 @@ class RLSDataset(Dataset):
             os.path.join(data_dir, "labels.xlsx"), index_col="EVLP_ID"
         )
         self.binarize = binarize
-        self.discretize = discretize  # todo: use me for something
-        self.aggregate_regions = aggregate_regions  # todo: use me for something
+        self.discretize = discretize  # todo
+        self.aggregate_regions = aggregate_regions  # todo
         self.aggregate_labels = aggregate_labels  # todo: think about how to use this in the case of regression and multi-class classification
         self.resolution = resolution
 
@@ -181,7 +181,7 @@ class RLSDataset(Dataset):
         return image, label
 
     def discretize_label(self, label):
-        # todo: not used now. Worry about how to do this with the raw data
+        # todo: not used now.
         pass
 
     def binarize_label(self, label):
